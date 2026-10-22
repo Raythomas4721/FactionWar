@@ -118,7 +118,10 @@ export function spawnUnit(world: World, f: Faction, role: Role): Unit | null {
   if (!hq) return null;
   const c = centerOf(hq);
   const race = RACES[f.race];
-  const attrs = rollAttributes(world, race.base);
+  const power = world.rules.racePower[f.race];
+  const base = { ...race.base };
+  for (const k of ATTR_KEYS) base[k] *= power;
+  const attrs = rollAttributes(world, base);
   const hp = maxHpOf(attrs);
   const u: Unit = {
     id: world.nextId++,

@@ -41,9 +41,8 @@ export function damageUnit(world: World, target: Unit, dmg: number, byFaction: n
   target.morale = clamp(target.morale - dmg * 0.8 * moraleLossMult(target.attrs), 0, 100);
   if (target.hp > 0) return;
 
-  const victimFaction = world.factions[target.factionId];
-  victimFaction.stats.deaths++;
-  world.factions[byFaction].stats.kills++;
+  world.factions[target.factionId].stats.deaths++;
+  if (byFaction >= 0) world.factions[byFaction].stats.kills++;
   if (byUnit) {
     byUnit.kills++;
     byUnit.morale = clamp(byUnit.morale + 8, 0, 100);
@@ -61,11 +60,12 @@ export function damageBuilding(world: World, b: Building, dmg: number, byFaction
   b.hp -= dmg;
   if (b.hp > 0) return;
   const owner = world.factions[b.factionId];
-  const attacker = world.factions[byFaction];
+  const attacker = byFaction >= 0 ? world.factions[byFaction] : null;
   if (b.type === 'hq') {
     eliminateFaction(world, owner, attacker);
   } else {
-    logEvent(world, 'combat', `${attacker.name} 摧毀了 ${owner.name} 的${BUILDING_DEFS[b.type].name}`, byFaction);
+    const who = attacker ? attacker.name : '天災';
+    logEvent(world, 'combat', `${who} 摧毀了 ${owner.name} 的${BUILDING_DEFS[b.type].name}`, byFaction);
   }
 }
 
@@ -74,12 +74,12 @@ export function eliminateFaction(world: World, f: Faction, by: Faction | null): 
   f.eliminatedAt = world.tick;
   for (const u of world.units) if (u.factionId === f.id) u.hp = 0;
   for (const b of world.buildings) if (b.factionId === f.id) b.hp = 0;
-  const who = by ? `被 ${by.name} 攻陷` : '陷落';
+  const who = by ? `被 ${by.name} 攻陷` : '毀於天災';
   logEvent(world, 'faction', `${f.name} 的營帳${who}，殘部潰散，陣營覆滅！`, by ? by.id : f.id);
 }
 
 function addTracer(world: World, u: Unit, x: number, y: number) {
-  world.effects.push({ x1: u.x, y1: u.y, x2: x, y2: y, ttl: 3, color: world.factions[u.factionId].color });
+  world.effects.push({ x1: u.x, y1: u.y, x2: x, y2: y, ttl: 3, maxTtl: 3, color: world.factions[u.factionId].color });
 }
 
 export function strikeUnit(world: World, u: Unit, target: Unit): void {
@@ -87,7 +87,8 @@ export function strikeUnit(world: World, u: Unit, target: Unit): void {
   u.cooldown = cooldownOf(u.attrs);
   if (weaponStats(u).ranged) addTracer(world, u, target.x, target.y);
   if (!world.rng.chance(hitChance(u.attrs, target.attrs))) return;
-  const dmg = mitigatedDamage(rawDamage(u) * world.rng.range(0.85, 1.15), target.attrs, armorOf(target));
+  const raw = rawDamage(u) * world.rng.range(0.85, 1.15) * world.rules.damageMult;
+  const dmg = mitigatedDamage(raw, target.attrs, armorOf(target));
   damageUnit(world, target, dmg, u.factionId, unitLabel(u), u);
 }
 
@@ -96,7 +97,7 @@ export function strikeBuilding(world: World, u: Unit, b: Building): void {
   u.cooldown = cooldownOf(u.attrs);
   const c = centerOf(b);
   if (weaponStats(u).ranged) addTracer(world, u, c.x, c.y);
-  const dmg = Math.max(1, rawDamage(u) * world.rng.range(0.85, 1.15) - BUILDING_ARMOR);
+  const dmg = Math.max(1, rawDamage(u) * world.rng.range(0.85, 1.15) * world.rules.damageMult - BUILDING_ARMOR);
   damageBuilding(world, b, dmg, u.factionId);
 }
 

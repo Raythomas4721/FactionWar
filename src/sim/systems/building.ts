@@ -122,8 +122,8 @@ export function updateBuildings(world: World): void {
     }
     if (!target) continue;
     b.cooldown = turret.cooldown;
-    world.effects.push({ x1: c.x, y1: c.y, x2: target.x, y2: target.y, ttl: 3, color: f.color });
-    const dmg = b.type === 'tower' ? turret.dmg * RACES[f.race].towerDamageMult : turret.dmg;
+    world.effects.push({ x1: c.x, y1: c.y, x2: target.x, y2: target.y, ttl: 3, maxTtl: 3, color: f.color });
+    const dmg = (b.type === 'tower' ? turret.dmg * RACES[f.race].towerDamageMult : turret.dmg) * world.rules.damageMult;
     damageUnit(world, target, dmg, f.id, `${f.name}的${BUILDING_DEFS[b.type].name}`);
   }
 }

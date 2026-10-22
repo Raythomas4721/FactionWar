@@ -7,6 +7,15 @@ export const TILE_PX = 12;
 
 export type Selection = { kind: 'unit'; id: number } | { kind: 'building'; id: number };
 
+/** 選了神力時，滑鼠位置的預覽：範圍圈，或要被施法的陣營 */
+export interface PowerCursor {
+  x: number;
+  y: number;
+  radius: number;
+  color: string;
+  factionId: number | null;
+}
+
 const TERRAIN: Record<TileKind, string> = {
   grass: '#2c4529',
   water: '#1d3f61',
@@ -42,7 +51,7 @@ export class CanvasRenderer {
 
   constructor(private canvas: HTMLCanvasElement) {}
 
-  draw(world: World, selection: Selection | null): void {
+  draw(world: World, selection: Selection | null, cursor: PowerCursor | null = null): void {
     const T = TILE_PX;
     const w = world.width * T;
     const h = world.height * T;
@@ -84,19 +93,54 @@ export class CanvasRenderer {
       }
     }
 
-    // 箭矢軌跡
+    // 箭矢軌跡與神力光環
     for (const e of world.effects) {
-      ctx.globalAlpha = e.ttl / 3;
+      const life = e.ttl / e.maxTtl;
+      ctx.globalAlpha = life;
       ctx.strokeStyle = e.color;
-      ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(e.x1 * T, e.y1 * T);
-      ctx.lineTo(e.x2 * T, e.y2 * T);
+      if (e.radius) {
+        ctx.lineWidth = 3;
+        ctx.arc(e.x1 * T, e.y1 * T, e.radius * T * (1.3 - life * 0.3), 0, Math.PI * 2);
+        ctx.fillStyle = e.color;
+        ctx.globalAlpha = life * 0.25;
+        ctx.fill();
+        ctx.globalAlpha = life;
+      } else {
+        ctx.lineWidth = 1;
+        ctx.moveTo(e.x1 * T, e.y1 * T);
+        ctx.lineTo(e.x2 * T, e.y2 * T);
+      }
       ctx.stroke();
     }
     ctx.globalAlpha = 1;
 
     for (const u of world.units) this.drawUnit(ctx, world, u, selection);
+    if (cursor) this.drawCursor(ctx, world, cursor);
+  }
+
+  private drawCursor(ctx: CanvasRenderingContext2D, world: World, c: PowerCursor) {
+    const T = TILE_PX;
+    ctx.save();
+    ctx.strokeStyle = c.color;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 4]);
+    if (c.radius > 0) {
+      ctx.beginPath();
+      ctx.arc(c.x * T, c.y * T, c.radius * T, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (c.factionId !== null) {
+      const hq = world.buildings.find((b) => b.id === world.factions[c.factionId!].hqId);
+      if (hq) {
+        const s = BUILDING_SIZE * T;
+        ctx.strokeRect(hq.x * T - 4, hq.y * T - 4, s + 8, s + 8);
+        ctx.beginPath();
+        ctx.moveTo(c.x * T, c.y * T);
+        ctx.lineTo((hq.x + 1) * T, (hq.y + 1) * T);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
   }
 
   private drawUnit(ctx: CanvasRenderingContext2D, world: World, u: Unit, selection: Selection | null) {

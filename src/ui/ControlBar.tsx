@@ -13,6 +13,7 @@ interface Props {
   onNewGame: () => void;
   onRestart: () => void;
   onSeed: (seed: number) => void;
+  onOpenRules: () => void;
 }
 
 export function formatTime(tick: number): string {
@@ -20,7 +21,7 @@ export function formatTime(tick: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
-export function ControlBar({ world, paused, speed, onTogglePause, onSpeed, onNewGame, onRestart, onSeed }: Props) {
+export function ControlBar({ world, paused, speed, onTogglePause, onSpeed, onNewGame, onRestart, onSeed, onOpenRules }: Props) {
   const [seedInput, setSeedInput] = useState('');
   return (
     <header className="control-bar">
@@ -36,6 +37,7 @@ export function ControlBar({ world, paused, speed, onTogglePause, onSpeed, onNew
         ))}
       </div>
       <span className="clock">⏱ {formatTime(world.tick)} / {formatTime(world.maxTicks)}</span>
+      <button onClick={onOpenRules}>📜 世界法則</button>
       <span className="spacer" />
       <span className="muted">種子 {world.seed}</span>
       <button onClick={onRestart} title="用同一個種子重播">↺ 重播</button>

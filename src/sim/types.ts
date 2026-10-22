@@ -1,4 +1,5 @@
 import type { Rng } from './rng';
+import type { WorldRules } from './rules';
 
 export type RaceId = 'orc' | 'elf' | 'dwarf' | 'human';
 export type AttrKey = 'str' | 'agi' | 'int' | 'con' | 'cha';
@@ -121,9 +122,11 @@ export interface Faction {
   relations: number[];
   stats: FactionStats;
   nextAiAt: number;
+  /** 由玩家決定戰略（進攻／防守），AI 不再改變姿態 */
+  playerControlled: boolean;
 }
 
-export type EventKind = 'combat' | 'craft' | 'build' | 'tech' | 'faction' | 'info';
+export type EventKind = 'combat' | 'craft' | 'build' | 'tech' | 'faction' | 'god' | 'info';
 
 export interface GameEvent {
   tick: number;
@@ -132,13 +135,16 @@ export interface GameEvent {
   factionId: number;
 }
 
-/** 純視覺效果（箭矢軌跡），不影響模擬結果 */
+/** 純視覺效果（箭矢軌跡、神力光環），不影響模擬結果 */
 export interface Effect {
   x1: number;
   y1: number;
   x2: number;
   y2: number;
   ttl: number;
+  maxTtl: number;
+  /** 有半徑時畫成擴散的光環，否則畫成線 */
+  radius?: number;
   color: string;
 }
 
@@ -161,4 +167,7 @@ export interface World {
   over: boolean;
   winner: number | null;
   endReason: string;
+  rules: WorldRules;
+  /** 神力值，施展上帝之手會消耗 */
+  mana: number;
 }

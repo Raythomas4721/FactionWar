@@ -1,10 +1,13 @@
 import { BUILDING_DEFS } from './buildings';
-import { AI_INTERVAL, HQ_REST_RADIUS, MAP_H, MAP_W, MAX_TECH, MAX_TICKS, TECH_THRESHOLDS } from './constants';
+import {
+  AI_INTERVAL, HQ_REST_RADIUS, MANA_MAX, MANA_REGEN, MAP_H, MAP_W, MAX_TECH, TECH_THRESHOLDS,
+} from './constants';
 import { ITEM_DEFS } from './items';
 import { generateMap } from './map';
 import { clamp, dist } from './math';
 import { RACES, RACE_ORDER, RIVALRY } from './races';
 import { Rng } from './rng';
+import { maxTicksOf, mergeRules, type WorldRules } from './rules';
 import { moraleRegenOf } from './stats';
 import type { Faction, Item, RaceId, Role, Unit, World } from './types';
 import {
@@ -21,7 +24,7 @@ import { equipTick } from './systems/equipment';
 import { moveTo } from './systems/movement';
 
 export interface WorldOptions {
-  maxTicks?: number;
+  rules?: Partial<WorldRules>;
   width?: number;
   height?: number;
 }
@@ -29,11 +32,12 @@ export interface WorldOptions {
 const START_ROLES: Role[] = ['worker', 'worker', 'worker', 'worker', 'worker', 'warrior', 'warrior', 'warrior', 'smith'];
 
 /** 沒有陣營、全是草地的世界，給測試用 */
-export function createBlankWorld(seed: number, width = MAP_W, height = MAP_H): World {
+export function createBlankWorld(seed: number, width = MAP_W, height = MAP_H, rules?: Partial<WorldRules>): World {
+  const merged = mergeRules(rules);
   return {
     seed,
     tick: 0,
-    maxTicks: MAX_TICKS,
+    maxTicks: maxTicksOf(merged),
     rng: new Rng(seed),
     width,
     height,
@@ -49,6 +53,8 @@ export function createBlankWorld(seed: number, width = MAP_W, height = MAP_H): W
     over: false,
     winner: null,
     endReason: '',
+    rules: merged,
+    mana: MANA_MAX / 2,
   };
 }
 
@@ -60,8 +66,8 @@ export function createFaction(world: World, race: RaceId, races: RaceId[]): Fact
     name: def.factionName,
     color: def.color,
     resources: { wood: 60, stone: 20, ore: 0, food: 60 },
-    research: 0,
-    tech: 0,
+    research: TECH_THRESHOLDS[world.rules.startTech] ?? 0,
+    tech: world.rules.startTech,
     alive: true,
     eliminatedAt: null,
     stance: 'defend',
@@ -74,15 +80,15 @@ export function createFaction(world: World, race: RaceId, races: RaceId[]): Fact
     relations: races.map((other) => (other === race ? 100 : RIVALRY[race][other])),
     stats: { kills: 0, deaths: 0, crafted: 0, built: 0, trained: 0, bestItem: null },
     nextAiAt: 1 + world.factions.length * 5,
+    playerControlled: false,
   };
   world.factions.push(f);
   return f;
 }
 
 export function createWorld(seed: number, opts: WorldOptions = {}): World {
-  const world = createBlankWorld(seed, opts.width ?? MAP_W, opts.height ?? MAP_H);
-  world.maxTicks = opts.maxTicks ?? MAX_TICKS;
-  const map = generateMap(world.rng, world.width, world.height);
+  const world = createBlankWorld(seed, opts.width ?? MAP_W, opts.height ?? MAP_H, opts.rules);
+  const map = generateMap(world.rng, world.width, world.height, world.rules.resourceRichness);
   world.tiles = map.tiles;
 
   const races = world.rng.shuffle([...RACE_ORDER]);
@@ -117,6 +123,8 @@ export function score(world: World, f: Faction): number {
 export function step(world: World): void {
   if (world.over) return;
   world.tick++;
+  world.maxTicks = maxTicksOf(world.rules);
+  world.mana = world.rules.infiniteMana ? MANA_MAX : Math.min(MANA_MAX, world.mana + MANA_REGEN);
 
   for (const f of world.factions) {
     if (!f.alive) continue;
@@ -194,7 +202,7 @@ function updateResearch(world: World): void {
     let intSum = 0;
     for (const u of world.units) if (u.factionId === f.id && u.hp > 0 && u.role !== 'warrior') intSum += u.attrs.int;
     const libraries = factionBuildings(world, f.id, 'library').filter((b) => b.complete).length;
-    f.research += 0.004 * intSum * (1 + RACES[f.race].libraryBonus * libraries);
+    f.research += 0.004 * intSum * (1 + RACES[f.race].libraryBonus * libraries) * world.rules.researchMult;
     while (f.tech < MAX_TECH && f.research >= TECH_THRESHOLDS[f.tech + 1]) {
       f.tech++;
       logEvent(world, 'tech', `${f.name} 科技提升到 Lv${f.tech}，解鎖：${unlocksAt(f, f.tech)}`, f.id);

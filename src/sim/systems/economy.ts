@@ -43,7 +43,8 @@ export function gatherTick(world: World, u: Unit, kind: ResourceKind, tx: number
 
   const cap = carryOf(u.attrs);
   if (!u.carrying || u.carrying.kind !== kind) u.carrying = { kind, amount: 0 };
-  const rate = gatherRateOf(u.attrs, kind === 'food') * (kind === 'food' ? RACES[u.race].forageMult : 1);
+  const rate =
+    gatherRateOf(u.attrs, kind === 'food') * (kind === 'food' ? RACES[u.race].forageMult : 1) * world.rules.gatherMult;
   const amt = Math.min(rate, tile.amount, cap - u.carrying.amount);
   u.carrying.amount += amt;
   tile.amount -= amt;

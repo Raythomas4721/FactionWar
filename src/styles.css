@@ -411,3 +411,162 @@ input {
   font-size: 11px;
   color: var(--muted);
 }
+
+/* 上帝之手 */
+.god-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+.mana {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 150px;
+}
+.mana-meter > div {
+  background: linear-gradient(90deg, #6aa8ff, #c58bff);
+}
+.powers {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.power {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.power small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.power.active {
+  background: #4a3a1a;
+  border-color: var(--accent);
+}
+.power-icon {
+  font-size: 14px;
+}
+.god-hint {
+  flex-basis: 100%;
+  font-size: 12px;
+  color: var(--accent);
+}
+.god-hint.fail {
+  color: #ff8a7a;
+}
+canvas.casting {
+  cursor: cell;
+}
+
+/* 世界法則 */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 10;
+}
+.modal {
+  width: min(560px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.modal h3 {
+  margin: 8px 0 0;
+  font-size: 14px;
+}
+.modal p {
+  margin: 0;
+}
+.rules {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.rule {
+  display: grid;
+  grid-template-columns: 110px 1fr 80px;
+  align-items: center;
+  gap: 10px;
+}
+.rule-val {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.new-game-tag {
+  font-style: normal;
+  font-size: 10px;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: #3a3350;
+  color: #cbb8ff;
+}
+.rule-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+.rule-check input,
+.control-toggle input {
+  width: auto;
+}
+.modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* 玩家指揮 */
+.control-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.faction-card.controlled {
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+.commands {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--panel-2);
+  border-radius: 6px;
+  padding: 6px;
+}
+.cmd-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+}
+.cmd-row button {
+  padding: 2px 7px;
+  font-size: 12px;
+}
+.cmd-row button.attack {
+  background: #5a2626;
+  border-color: #a84646;
+}
+.cmd-label {
+  width: 30px;
+  font-size: 11px;
+  color: var(--muted);
+}

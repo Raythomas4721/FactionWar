@@ -4,6 +4,7 @@ import { RACES } from '../sim/races';
 import type { BuildingType, Faction, Resources, World } from '../sim/types';
 import { RESOURCE_NAMES, factionBuildings, factionUnits, popCapOf } from '../sim/util';
 import { score } from '../sim/world';
+import { FactionCommands } from './FactionCommands';
 
 const RES_ORDER: (keyof Resources)[] = ['food', 'wood', 'stone', 'ore'];
 const SHOWN_BUILDINGS: BuildingType[] = ['house', 'farm', 'forge', 'library', 'barracks', 'tower'];
@@ -29,7 +30,10 @@ function FactionCard({ world, f }: { world: World; f: Faction }) {
       : (f.research - TECH_THRESHOLDS[f.tech]) / (TECH_THRESHOLDS[f.tech + 1] - TECH_THRESHOLDS[f.tech]);
 
   return (
-    <div className={`panel faction-card ${f.alive ? '' : 'dead'}`} style={{ borderTopColor: f.color }}>
+    <div
+      className={`panel faction-card ${f.alive ? '' : 'dead'} ${f.playerControlled ? 'controlled' : ''}`}
+      style={{ borderTopColor: f.color }}
+    >
       <div className="fc-head">
         <span className="dot" style={{ background: f.color }} />
         <h3 style={{ color: f.color }}>{f.name}</h3>
@@ -43,6 +47,20 @@ function FactionCard({ world, f }: { world: World; f: Faction }) {
         )}
         <span className="score">分數 {score(world, f)}</span>
       </div>
+
+      {f.alive && (
+        <label className="control-toggle">
+          <input
+            type="checkbox"
+            checked={f.playerControlled}
+            onChange={(e) => {
+              f.playerControlled = e.target.checked;
+            }}
+          />
+          🎮 由我指揮
+        </label>
+      )}
+      {f.alive && f.playerControlled && <FactionCommands world={world} f={f} />}
 
       <div className="fc-row">
         <span>人口 {units.length}/{popCapOf(world, f.id)}</span>

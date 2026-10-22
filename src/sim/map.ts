@@ -19,15 +19,15 @@ const AMOUNTS: Record<TileKind, number> = {
 const HQ_LOCAL: Point = { x: 5, y: 5 };
 const BASE_CLEAR_RADIUS = 4.5;
 
-export function generateMap(rng: Rng, w: number, h: number): MapResult {
+export function generateMap(rng: Rng, w: number, h: number, richness = 1): MapResult {
   for (let attempt = 0; attempt < 20; attempt++) {
-    const result = tryGenerate(rng, w, h);
+    const result = tryGenerate(rng, w, h, richness);
     if (isConnected(result, w, h)) return result;
   }
   throw new Error('無法產生連通的地圖');
 }
 
-function tryGenerate(rng: Rng, w: number, h: number): MapResult {
+function tryGenerate(rng: Rng, w: number, h: number, richness: number): MapResult {
   const qw = Math.floor(w / 2);
   const qh = Math.floor(h / 2);
   const q: { kind: TileKind; amount: number }[] = Array.from({ length: qw * qh }, () => ({ kind: 'grass', amount: 0 }));
@@ -39,7 +39,8 @@ function tryGenerate(rng: Rng, w: number, h: number): MapResult {
     q[y * qw + x].kind === 'grass' &&
     Math.hypot(x + 0.5 - hqCx, y + 0.5 - hqCy) > BASE_CLEAR_RADIUS;
 
-  const blob = (cx: number, cy: number, n: number, kind: TileKind, amount = AMOUNTS[kind]) => {
+  const blob = (cx: number, cy: number, n: number, kind: TileKind, baseAmount = AMOUNTS[kind]) => {
+    const amount = Math.round(baseAmount * richness);
     const cells: Point[] = [];
     if (canPlace(cx, cy)) {
       q[cy * qw + cx] = { kind, amount };

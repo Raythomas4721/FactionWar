@@ -8,12 +8,14 @@ const ICONS: Record<EventKind, string> = {
   build: '🏠',
   tech: '📜',
   faction: '🚩',
+  god: '✨',
   info: 'ℹ',
 };
 
 const FILTERS: { label: string; kinds: EventKind[] | null }[] = [
   { label: '全部', kinds: null },
   { label: '戰鬥', kinds: ['combat', 'faction'] },
+  { label: '神蹟', kinds: ['god'] },
   { label: '打造', kinds: ['craft'] },
   { label: '建設', kinds: ['build', 'tech'] },
 ];

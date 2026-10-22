@@ -1,5 +1,5 @@
 import { buildingCost } from '../buildings';
-import { HQ_THREAT_RADIUS, PEACE_TICKS } from '../constants';
+import { HQ_THREAT_RADIUS } from '../constants';
 import { ITEM_DEFS, itemPower } from '../items';
 import { dist } from '../math';
 import { RACES } from '../races';
@@ -10,6 +10,7 @@ import {
 import { isBuildingUnlocked } from '../systems/building';
 import { pickCraftDef } from '../systems/crafting';
 import { unitCost } from '../commands';
+import { peaceTicksOf } from '../rules';
 
 /**
  * 陣營策略 AI：每隔一段時間評估局勢，透過指令佇列下達「訓練 / 建造 / 打造 / 進攻」。
@@ -36,6 +37,13 @@ function decideStance(world: World, f: Faction, warriors: Unit[], cmds: Command[
   const hc = centerOf(hqOf(world, f)!);
   const threatened = enemiesNear(world, f.id, hc.x, hc.y, HQ_THREAT_RADIUS).length >= 2;
 
+  if (f.playerControlled) {
+    // 玩家指揮：AI 不改變戰略，只在目標滅亡時自動收兵
+    const targetDead = f.targetFaction !== null && !world.factions[f.targetFaction].alive;
+    if (f.stance === 'attack' && targetDead) cmds.push({ type: 'setStance', stance: 'defend', target: null });
+    return;
+  }
+
   if (f.stance === 'attack') {
     const targetAlive = f.targetFaction !== null && world.factions[f.targetFaction].alive;
     if (warriors.length < 3 || threatened || !targetAlive) {
@@ -44,7 +52,7 @@ function decideStance(world: World, f: Faction, warriors: Unit[], cmds: Command[
     return;
   }
 
-  if (world.tick < PEACE_TICKS) return;
+  if (world.tick < peaceTicksOf(world.rules)) return;
   const armed = warriors.filter((w) => w.weapon).length;
   const ready =
     (warriors.length >= 8 && armed >= warriors.length * 0.7) ||
