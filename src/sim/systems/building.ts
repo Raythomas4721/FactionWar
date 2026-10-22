@@ -113,7 +113,7 @@ export function updateBuildings(world: World): void {
     let target: Unit | undefined;
     let bestD = turret.range;
     for (const e of world.units) {
-      if (!isTargetable(e) || !areHostile(world, b.factionId, e.factionId)) continue;
+      if (!isTargetable(e, c.x, c.y) || !areHostile(world, b.factionId, e.factionId)) continue;
       const d = dist(c.x, c.y, e.x, e.y);
       if (d <= bestD) {
         bestD = d;

@@ -66,7 +66,7 @@ export const RACES: Record<RaceId, RaceDef> = {
     factionName: '精靈王國',
     color: '#b98cff',
     base: { str: 7, agi: 14, int: 14, con: 9, cha: 10 },
-    unitCost: 42,
+    unitCost: 46,
     popPerHouse: 5,
     towerDamageMult: 1,
     maxTowers: 2,

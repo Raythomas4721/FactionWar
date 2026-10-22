@@ -3,8 +3,9 @@ import { HQ_POP } from './buildings';
 import { clamp, dist } from './math';
 import { ATTR_KEYS, RACES } from './races';
 import { maxHpOf } from './stats';
+import { REVEAL_RADIUS, troopName } from './troops';
 import type {
-  Attributes, Building, BuildingType, EventKind, Faction, Point, Resources, Role, Tile, Unit, World,
+  Attributes, Building, BuildingType, EventKind, Faction, Point, Resources, Role, Tile, Troop, Unit, World,
 } from './types';
 
 export const ROLE_NAMES: Record<Role, string> = { worker: '工人', warrior: '戰士', smith: '鐵匠', diplomat: '外交官' };
@@ -54,21 +55,27 @@ export function areHostile(world: World, a: number, b: number): boolean {
   return a !== b && (world.treaties[a]?.[b] ?? 'war') === 'war';
 }
 
-/** 出使中的外交官享有外交豁免，不會被攻擊 */
-export function isTargetable(u: Unit): boolean {
-  return u.hp > 0 && u.action.type !== 'envoy';
+/**
+ * 能不能被攻擊：出使中的外交官有外交豁免、地底的工兵打不到、
+ * 隱身的伏兵要觀察者夠靠近才看得見。
+ */
+export function isTargetable(u: Unit, fromX?: number, fromY?: number): boolean {
+  if (u.hp <= 0 || u.action.type === 'envoy' || u.underground) return false;
+  if (u.hidden && (fromX === undefined || fromY === undefined || dist(fromX, fromY, u.x, u.y) > REVEAL_RADIUS)) return false;
+  return true;
 }
 
 /** 生病時工作效率減半 */
 export const sickMult = (u: Unit): number => (u.sick ? 0.5 : 1);
 
 export function unitLabel(u: Unit): string {
-  return `${RACES[u.race].name}${ROLE_NAMES[u.role]} ${u.name}`;
+  const role = u.role === 'warrior' && u.troop !== 'soldier' ? troopName(u.troop, u.race) : ROLE_NAMES[u.role];
+  return `${RACES[u.race].name}${role} ${u.name}`;
 }
 
 export function enemiesNear(world: World, factionId: number, x: number, y: number, radius: number): Unit[] {
   return world.units.filter(
-    (e) => isTargetable(e) && areHostile(world, factionId, e.factionId) && dist(x, y, e.x, e.y) <= radius,
+    (e) => isTargetable(e, x, y) && areHostile(world, factionId, e.factionId) && dist(x, y, e.x, e.y) <= radius,
   );
 }
 
@@ -76,7 +83,7 @@ export function nearestEnemyUnit(world: World, u: Unit, radius: number): Unit | 
   let best: Unit | undefined;
   let bestD = radius;
   for (const e of world.units) {
-    if (!isTargetable(e) || !areHostile(world, u.factionId, e.factionId)) continue;
+    if (!isTargetable(e, u.x, u.y) || !areHostile(world, u.factionId, e.factionId)) continue;
     const d = dist(u.x, u.y, e.x, e.y);
     if (d <= bestD) {
       bestD = d;
@@ -121,7 +128,7 @@ export function rollAttributes(world: World, base: Attributes): Attributes {
   return a;
 }
 
-export function spawnUnit(world: World, f: Faction, role: Role): Unit | null {
+export function spawnUnit(world: World, f: Faction, role: Role, troop: Troop = 'soldier'): Unit | null {
   const hq = hqOf(world, f);
   if (!hq) return null;
   const c = centerOf(hq);
@@ -137,6 +144,7 @@ export function spawnUnit(world: World, f: Faction, role: Role): Unit | null {
     factionId: f.id,
     race: f.race,
     role,
+    troop: role === 'warrior' ? troop : 'soldier',
     attrs,
     hp,
     maxHp: hp,
@@ -152,6 +160,10 @@ export function spawnUnit(world: World, f: Faction, role: Role): Unit | null {
     weapon: null,
     armor: null,
     cooldown: 0,
+    charge: 0,
+    underground: false,
+    hidden: false,
+    revealedUntil: 0,
     kills: 0,
     bornAt: world.tick,
     sick: false,

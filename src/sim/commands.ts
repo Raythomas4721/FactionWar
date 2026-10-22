@@ -1,7 +1,8 @@
 import { BARRACKS_DISCOUNT } from './buildings';
 import { ITEM_DEFS } from './items';
 import { RACES } from './races';
-import type { Command, Faction, Role, World } from './types';
+import { TROOP_DEFS, canTrainTroop } from './troops';
+import type { Command, Faction, Role, Troop, World } from './types';
 import { areHostile, hasCompleted, logEvent, popCapOf, popOf, spawnUnit } from './util';
 import { declareWar, sendEnvoy } from './systems/diplomacy';
 import { getTreaty } from './systems/treaties';
@@ -14,9 +15,11 @@ export function issueCommand(world: World, factionId: number, cmd: Command): voi
   world.factions[factionId]?.commands.push(cmd);
 }
 
-export function unitCost(world: World, f: Faction, role: Role): number {
+export function unitCost(world: World, f: Faction, role: Role, troop: Troop = 'soldier'): number {
   const base = RACES[f.race].unitCost;
-  return role === 'warrior' && hasCompleted(world, f.id, 'barracks') ? Math.round(base * BARRACKS_DISCOUNT) : base;
+  if (role !== 'warrior') return base;
+  const discounted = hasCompleted(world, f.id, 'barracks') ? Math.round(base * BARRACKS_DISCOUNT) : base;
+  return discounted + TROOP_DEFS[troop].extraFood;
 }
 
 export function processCommands(world: World, f: Faction): void {
@@ -25,9 +28,11 @@ export function processCommands(world: World, f: Faction): void {
   for (const cmd of cmds) {
     switch (cmd.type) {
       case 'train': {
-        const cost = unitCost(world, f, cmd.role);
+        const troop = cmd.role === 'warrior' ? cmd.troop ?? 'soldier' : 'soldier';
+        if (!canTrainTroop(f, troop, (t) => hasCompleted(world, f.id, t))) break;
+        const cost = unitCost(world, f, cmd.role, troop);
         if (f.resources.food < cost || popOf(world, f.id) >= popCapOf(world, f.id)) break;
-        if (spawnUnit(world, f, cmd.role)) {
+        if (spawnUnit(world, f, cmd.role, troop)) {
           f.resources.food -= cost;
           f.stats.trained++;
         }

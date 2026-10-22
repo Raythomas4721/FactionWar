@@ -1,10 +1,11 @@
 import { buildingCost } from '../buildings';
 import { HQ_THREAT_RADIUS, TICKS_PER_SECOND } from '../constants';
-import { upkeepOf } from '../systems/health';
+import { eatersOf, upkeepOf } from '../systems/health';
+import { TROOP_MIX, canTrainTroop, isTroopAvailableToRace } from '../troops';
 import { ITEM_DEFS, itemPower } from '../items';
 import { dist } from '../math';
 import { RACES } from '../races';
-import type { BuildingType, Command, Faction, Role, Unit, World } from '../types';
+import type { BuildingType, Command, Faction, Role, Troop, Unit, World } from '../types';
 import {
   areHostile, canAfford, centerOf, enemiesNear, factionBuildings, factionUnits, hasCompleted, hqOf, popCapOf,
 } from '../util';
@@ -153,8 +154,29 @@ function decideTraining(world: World, f: Faction, units: Unit[], hasForge: boole
   else if (workers < 10 && workers < warriors * 0.8) role = 'worker';
   else role = 'warrior';
 
-  const reserve = upkeepOf(world, f, units.length) * 60 * TICKS_PER_SECOND;
-  if (f.resources.food >= unitCost(world, f, role) + reserve) cmds.push({ type: 'train', role });
+  const troop = role === 'warrior' ? pickTroop(world, f, units) : 'soldier';
+  const reserve = upkeepOf(world, f, eatersOf(units)) * 60 * TICKS_PER_SECOND;
+  if (f.resources.food >= unitCost(world, f, role, troop) + reserve) cmds.push({ type: 'train', role, troop });
+}
+
+/** 依種族偏好的兵種比例補兵；看到敵方有騎兵就多練長矛兵 */
+function pickTroop(world: World, f: Faction, units: Unit[]): Troop {
+  const warriors = units.filter((u) => u.role === 'warrior');
+  const mix = { ...TROOP_MIX[f.race] };
+  const enemyCavalry = world.units.some((u) => u.troop === 'cavalry' && areHostile(world, f.id, u.factionId));
+  if (enemyCavalry) mix.spearman = (mix.spearman ?? 0) + 0.1;
+  let best: Troop = 'soldier';
+  let bestGap = 0;
+  for (const [troop, share] of Object.entries(mix) as [Troop, number][]) {
+    if (!canTrainTroop(f, troop, (t) => hasCompleted(world, f.id, t))) continue;
+    const have = warriors.filter((u) => u.troop === troop).length;
+    const gap = share - have / Math.max(1, warriors.length);
+    if (gap > bestGap) {
+      bestGap = gap;
+      best = troop;
+    }
+  }
+  return best;
 }
 
 function decideBuilding(world: World, f: Faction, units: Unit[], cmds: Command[]): void {
@@ -175,6 +197,7 @@ function decideBuilding(world: World, f: Faction, units: Unit[], cmds: Command[]
   if (n('barracks') === 0) wishes.push('barracks');
   if (n('tower') < RACES[f.race].maxTowers) wishes.push('tower');
   if (n('infirmary') === 0 && pop >= 18) wishes.push('infirmary');
+  if (n('stable') === 0 && isTroopAvailableToRace('cavalry', f.race)) wishes.push('stable');
   if (n('house') < 8 && pop >= cap - 4) wishes.push('house');
 
   const pick = wishes.find((t) => isBuildingUnlocked(f, t) && canAfford(f.resources, buildingCost(t, f.race)));
@@ -193,7 +216,9 @@ function decideCrafting(f: Faction, warriors: Unit[], hasForge: boolean, cmds: C
   const weaponsInStock = f.armory.filter((i) => ITEM_DEFS[i.defId].slot === 'weapon' && goodEnough(itemPower(i))).length;
   if (weaponsNeeded > weaponsInStock) {
     const rangedCount = warriors.filter((w) => w.weapon && ITEM_DEFS[w.weapon.defId].ranged).length;
-    const wantRanged = warriors.length === 0 || rangedCount / warriors.length < RACES[f.race].rangedShare;
+    const rangersUnarmed = warriors.some((w) => w.troop === 'ranger' && (!w.weapon || !ITEM_DEFS[w.weapon.defId].ranged));
+    const wantRanged =
+      rangersUnarmed || warriors.length === 0 || rangedCount / warriors.length < RACES[f.race].rangedShare;
     const def = (wantRanged ? ranged : melee) ?? melee ?? ranged;
     if (def) cmds.push({ type: 'craft', defId: def.id });
     return;

@@ -226,11 +226,12 @@ function Legend() {
       <span><i className="lg-circle" />工人</span>
       <span><i className="lg-square" />鐵匠</span>
       <span><i className="lg-triangle" />外交官</span>
+      <span><i className="lg-ellipse" />騎兵</span>
       <span><i className="lg-tile" style={{ background: '#3f7a3a' }} />森林</span>
       <span><i className="lg-tile" style={{ background: '#8a8f96' }} />石頭</span>
       <span><i className="lg-tile" style={{ background: '#e0904a' }} />鐵礦</span>
       <span><i className="lg-tile" style={{ background: '#d9465a' }} />漿果</span>
-      <span className="muted">點擊小人或建築查看詳情 · 半透明＝撤退中 · 空白鍵暫停</span>
+      <span className="muted">點擊小人或建築查看詳情 · 半透明＝撤退或隱身 · 土堆＝地底工兵 · 空白鍵暫停</span>
     </div>
   );
 }

@@ -24,6 +24,7 @@ import { equipTick } from './systems/equipment';
 import { infirmaryOf, updateDisease, updateHunger } from './systems/health';
 import { envoyTick, isAllianceVictory, subvertTick, updateDiplomacy, updateLoyalty } from './systems/diplomacy';
 import { initTreaties } from './systems/treaties';
+import { ambushTick, tunnelTick, updateStealth } from './systems/troopActions';
 import { moveTo } from './systems/movement';
 
 export interface WorldOptions {
@@ -155,6 +156,7 @@ export function step(world: World): void {
   updateHunger(world);
   updateDisease(world);
   updateLoyalty(world);
+  updateStealth(world);
   updateDiplomacy(world);
 
   const besieged = new Set<number>();
@@ -198,6 +200,8 @@ function act(world: World, u: Unit): boolean {
     case 'equip': return equipTick(world, u);
     case 'envoy': return envoyTick(world, u);
     case 'subvert': return subvertTick(world, u, a.targetId);
+    case 'tunnel': return tunnelTick(world, u, a.targetId);
+    case 'ambush': return ambushTick(world, u, a.x, a.y);
     case 'guard':
       moveTo(world, u, a.x, a.y, 0.5);
       return true;

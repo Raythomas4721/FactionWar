@@ -1,5 +1,6 @@
 import { dist } from '../math';
 import { speedOf } from '../stats';
+import { TROOP_DEFS } from '../troops';
 import type { Point, Unit, World } from '../types';
 import { isPassable } from '../util';
 
@@ -133,7 +134,9 @@ export function moveTo(world: World, u: Unit, cx: number, cy: number, stopDist: 
     u.repathAt = world.tick + (p ? 4 : 20);
   }
 
-  let speed = speedOf(u.attrs) * (u.sick ? 0.75 : 1);
+  let speed = speedOf(u.attrs) * (u.sick ? 0.75 : 1) * TROOP_DEFS[u.troop].speedMult;
+  const startX = u.x;
+  const startY = u.y;
   while (speed > 0) {
     const node = u.path[0];
     const tx = node ? node.x + 0.5 : cx;
@@ -154,5 +157,7 @@ export function moveTo(world: World, u: Unit, cx: number, cy: number, stopDist: 
       break;
     }
   }
+  // 騎兵奔跑會累積衝鋒距離
+  if (u.troop === 'cavalry') u.charge = Math.min(10, u.charge + dist(startX, startY, u.x, u.y));
   return dist(u.x, u.y, cx, cy) <= stopDist;
 }

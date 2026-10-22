@@ -1,6 +1,6 @@
 import { BUILDING_DEFS } from '../sim/buildings';
 import { MAX_TECH, TECH_THRESHOLDS, TICKS_PER_SECOND } from '../sim/constants';
-import { upkeepOf } from '../sim/systems/health';
+import { eatersOf, upkeepOf } from '../sim/systems/health';
 import { TREATY_ICONS, TREATY_NAMES, getTreaty } from '../sim/systems/treaties';
 import { RACES } from '../sim/races';
 import type { BuildingType, Faction, Resources, World } from '../sim/types';
@@ -9,7 +9,7 @@ import { score } from '../sim/world';
 import { FactionCommands } from './FactionCommands';
 
 const RES_ORDER: (keyof Resources)[] = ['food', 'wood', 'stone', 'ore'];
-const SHOWN_BUILDINGS: BuildingType[] = ['house', 'farm', 'forge', 'library', 'barracks', 'infirmary', 'tower'];
+const SHOWN_BUILDINGS: BuildingType[] = ['house', 'farm', 'forge', 'library', 'barracks', 'infirmary', 'stable', 'tower'];
 
 export function FactionPanel({ world }: { world: World }) {
   return (
@@ -27,7 +27,7 @@ function FactionCard({ world, f }: { world: World; f: Faction }) {
   const count = (r: string) => units.filter((u) => u.role === r).length;
   const buildings = factionBuildings(world, f.id).filter((b) => b.complete);
   const sick = units.filter((u) => u.sick).length;
-  const upkeepPerMin = upkeepOf(world, f, units.length) * 60 * TICKS_PER_SECOND;
+  const upkeepPerMin = upkeepOf(world, f, eatersOf(units)) * 60 * TICKS_PER_SECOND;
   const techProgress =
     f.tech >= MAX_TECH
       ? 1

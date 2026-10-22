@@ -149,17 +149,46 @@ export class CanvasRenderer {
     const x = u.x * T;
     const y = u.y * T;
     ctx.globalAlpha = u.action.type === 'retreat' ? 0.6 : 1;
+    if (u.hidden) ctx.globalAlpha = 0.35;
+    if (u.underground) {
+      // 地底的工兵：只看得到翻動的土堆
+      ctx.globalAlpha = 0.7;
+      ctx.fillStyle = '#7a5a3a';
+      ctx.beginPath();
+      ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = f.color;
+      ctx.setLineDash([2, 2]);
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+      return;
+    }
     ctx.fillStyle = f.color;
     ctx.strokeStyle = '#0b0f0b';
     ctx.lineWidth = 1;
     if (u.role === 'warrior') {
       ctx.beginPath();
-      ctx.arc(x, y, 4.5, 0, Math.PI * 2);
+      if (u.troop === 'cavalry') ctx.ellipse(x, y, 6.5, 4, 0, 0, Math.PI * 2);
+      else ctx.arc(x, y, 4.5, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = '#fff';
       ctx.lineWidth = 1.2;
       ctx.stroke();
-      if (u.weapon) {
+      if (u.troop === 'spearman') {
+        ctx.strokeStyle = '#e8e8e8';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(x + 4, y + 5);
+        ctx.lineTo(x + 4, y - 9);
+        ctx.stroke();
+      } else if (u.troop === 'ranger' || u.troop === 'sapper') {
+        // 伏兵戴綠帽、工兵戴礦工帽
+        ctx.fillStyle = u.troop === 'ranger' ? '#3f9a4a' : '#c89b5a';
+        ctx.fillRect(x - 3, y - 6.5, 6, 2.5);
+      }
+      if (u.weapon && u.troop !== 'spearman') {
         const def = ITEM_DEFS[u.weapon.defId];
         ctx.strokeStyle = def.ranged ? '#ffe9a8' : '#e8e8e8';
         ctx.lineWidth = 1.5;

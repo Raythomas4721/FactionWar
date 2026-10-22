@@ -10,6 +10,7 @@ import { cancelCraft, isItemUnlocked, startCraft } from '../systems/crafting';
 import { RESOURCE_TILE, findNearestResource } from '../systems/economy';
 import { bestArmoryUpgrade } from '../systems/equipment';
 import { pickSubvertTarget } from '../systems/diplomacy';
+import { findAmbushSpot } from '../systems/troopActions';
 
 /**
  * 個體 Utility AI：列出所有可做的事、各自打分，挑最高分的去做。
@@ -34,6 +35,9 @@ export function think(world: World, u: Unit): void {
   const enemy = nearestEnemyUnit(world, u, SIGHT);
   const enemyDist = enemy ? dist(u.x, u.y, enemy.x, enemy.y) : Infinity;
   const resting = u.action.type === 'retreat';
+
+  // 地底的工兵不受地面戰況影響，一路挖到底
+  if (u.underground && u.action.type === 'tunnel') add(98, u.action);
 
   if (u.role === 'warrior') {
     let s = (1 - hpRatio) * 90 + (u.morale < 25 ? 70 : 0);
@@ -81,6 +85,8 @@ function sameAction(a: UnitAction, b: UnitAction): boolean {
     case 'attackUnit': return b.type === 'attackUnit' && a.targetId === b.targetId;
     case 'attackBuilding': return b.type === 'attackBuilding' && a.targetId === b.targetId;
     case 'subvert': return b.type === 'subvert' && a.targetId === b.targetId;
+    case 'tunnel': return b.type === 'tunnel' && a.targetId === b.targetId;
+    case 'ambush': return b.type === 'ambush' && a.x === b.x && a.y === b.y;
     case 'guard': return true;
     case 'craft': return true;
     default: return true;
@@ -90,6 +96,7 @@ function sameAction(a: UnitAction, b: UnitAction): boolean {
 function setAction(world: World, u: Unit, action: UnitAction): void {
   if (sameAction(u.action, action)) return;
   if (u.action.type === 'craft') cancelCraft(world, u);
+  if (u.underground && action.type !== 'tunnel') u.underground = false;
   u.action = action;
   u.path.length = 0;
   u.pathGoal = null;
@@ -127,7 +134,20 @@ function warriorOptions(
       const tc = centerOf(tb);
       if (dist(u.x, u.y, c.x, c.y) < dist(u.x, u.y, tc.x, tc.y)) tb = b;
     }
-    if (tb) add(45, { type: 'attackBuilding', targetId: tb.id });
+    if (tb) {
+      add(45, { type: 'attackBuilding', targetId: tb.id });
+      // 地道工兵：挖地道直搗建築，避開正面的箭塔與守軍
+      if (u.troop === 'sapper') add(50, { type: 'tunnel', targetId: tb.id });
+    }
+  }
+
+  // 林地伏兵：防守時躲進森林，守在敵人來的方向
+  if (u.troop === 'ranger' && f.stance !== 'attack') {
+    if (u.action.type === 'ambush') add(14, u.action);
+    else {
+      const spot = findAmbushSpot(world, u);
+      if (spot) add(14, { type: 'ambush', x: spot.x, y: spot.y });
+    }
   }
 
   if (u.action.type === 'guard') {

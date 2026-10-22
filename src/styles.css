@@ -630,3 +630,17 @@ canvas.casting {
   border-right: 5px solid transparent;
   border-bottom: 9px solid #aaa;
 }
+
+/* 兵種 */
+.troop-desc {
+  font-size: 12px;
+  color: #cfe3ff;
+}
+.lg-ellipse {
+  display: inline-block;
+  width: 13px;
+  height: 8px;
+  border-radius: 50%;
+  background: #aaa;
+  border: 1.5px solid #fff;
+}

@@ -7,8 +7,10 @@ export type Attributes = Record<AttrKey, number>;
 export type ResourceKind = 'wood' | 'stone' | 'ore' | 'food';
 export type Resources = Record<ResourceKind, number>;
 export type Role = 'worker' | 'warrior' | 'smith' | 'diplomat';
+/** 戰士的兵種 */
+export type Troop = 'soldier' | 'spearman' | 'cavalry' | 'sapper' | 'ranger';
 export type TileKind = 'grass' | 'water' | 'forest' | 'rock' | 'ore' | 'berries';
-export type BuildingType = 'hq' | 'house' | 'farm' | 'forge' | 'library' | 'barracks' | 'tower' | 'infirmary';
+export type BuildingType = 'hq' | 'house' | 'farm' | 'forge' | 'library' | 'barracks' | 'tower' | 'infirmary' | 'stable';
 export type Stance = 'defend' | 'attack';
 /** 兩個陣營之間的外交狀態 */
 export type Treaty = 'war' | 'peace' | 'alliance';
@@ -45,7 +47,11 @@ export type UnitAction =
   /** 出使：前往對方營帳提議停戰或結盟（途中享有外交豁免） */
   | { type: 'envoy'; target: number; proposal: Proposal; returning: boolean }
   /** 策反：接近敵方小人，說服他倒戈 */
-  | { type: 'subvert'; targetId: number };
+  | { type: 'subvert'; targetId: number }
+  /** 地道工兵：從地底挖向敵方建築 */
+  | { type: 'tunnel'; targetId: number }
+  /** 林地伏兵：躲進森林等敵人經過 */
+  | { type: 'ambush'; x: number; y: number };
 
 export interface Unit {
   id: number;
@@ -53,6 +59,8 @@ export interface Unit {
   factionId: number;
   race: RaceId;
   role: Role;
+  /** 兵種（非戰士一律為 soldier） */
+  troop: Troop;
   attrs: Attributes;
   hp: number;
   maxHp: number;
@@ -69,6 +77,14 @@ export interface Unit {
   weapon: Item | null;
   armor: Item | null;
   cooldown: number;
+  /** 騎兵累積的奔跑距離，夠長就能衝鋒 */
+  charge: number;
+  /** 地道工兵在地底 */
+  underground: boolean;
+  /** 林地伏兵隱身中 */
+  hidden: boolean;
+  /** 放箭後暴露位置到這個 tick */
+  revealedUntil: number;
   kills: number;
   bornAt: number;
   /** 是否染病：會掉血、工作與移動變慢、傳染給附近的人 */
@@ -96,7 +112,7 @@ export interface Building {
 }
 
 export type Command =
-  | { type: 'train'; role: Role }
+  | { type: 'train'; role: Role; troop?: Troop }
   | { type: 'build'; building: BuildingType }
   | { type: 'craft'; defId: string }
   | { type: 'setStance'; stance: Stance; target: number | null }

@@ -1,6 +1,7 @@
 import { clamp, dist } from '../math';
 import { RACES } from '../races';
 import { diseaseResistOf, recoveryRateOf } from '../stats';
+import { TROOP_DEFS } from '../troops';
 import type { Faction, Unit, World } from '../types';
 import { centerOf, factionBuildings, logEvent, unitLabel } from '../util';
 import { handleDeath } from './combat';
@@ -21,6 +22,11 @@ const INFIRMARY_RADIUS = 4;
 /** 這名小人實際的染病機率倍率：體質 × 種族 × 世界法則 */
 export function infectionRisk(world: World, u: Unit): number {
   return diseaseResistOf(u.attrs) * RACES[u.race].diseaseMult * world.rules.diseaseMult;
+}
+
+/** 要吃飯的「人份」：騎兵連坐騎算 1.5 份 */
+export function eatersOf(units: Unit[]): number {
+  return units.reduce((s, u) => s + TROOP_DEFS[u.troop].upkeep, 0);
 }
 
 export function upkeepOf(world: World, f: Faction, pop: number): number {
@@ -58,7 +64,7 @@ export function updateHunger(world: World): void {
   for (const f of world.factions) {
     if (!f.alive) continue;
     const units = pops.get(f.id) ?? [];
-    const need = upkeepOf(world, f, units.length);
+    const need = upkeepOf(world, f, eatersOf(units));
     const wasStarving = f.starving;
     if (f.resources.food >= need) {
       f.resources.food -= need;

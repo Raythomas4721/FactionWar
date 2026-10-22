@@ -2,11 +2,12 @@ import { BUILDING_DEFS, buildingCost } from '../sim/buildings';
 import { issueCommand, unitCost } from '../sim/commands';
 import { isBuildingUnlocked } from '../sim/systems/building';
 import { TREATY_ICONS, getTreaty } from '../sim/systems/treaties';
+import { TROOP_DEFS, TROOP_ORDER, canTrainTroop, isTroopAvailableToRace, troopName } from '../sim/troops';
 import type { BuildingType, Faction, Resources, Role, World } from '../sim/types';
-import { RESOURCE_NAMES, ROLE_NAMES, canAfford, popCapOf, popOf } from '../sim/util';
+import { RESOURCE_NAMES, ROLE_NAMES, canAfford, hasCompleted, popCapOf, popOf } from '../sim/util';
 
 const ROLES: Role[] = ['worker', 'warrior', 'smith', 'diplomat'];
-const BUILDABLE: BuildingType[] = ['house', 'farm', 'forge', 'library', 'barracks', 'infirmary', 'tower'];
+const BUILDABLE: BuildingType[] = ['house', 'farm', 'forge', 'library', 'barracks', 'infirmary', 'stable', 'tower'];
 
 const costText = (cost: Partial<Resources>) =>
   (Object.keys(cost) as (keyof Resources)[]).map((k) => `${RESOURCE_NAMES[k]} ${cost[k]}`).join('、');
@@ -69,6 +70,27 @@ export function FactionCommands({ world, f }: { world: World; f: Faction }) {
               onClick={() => issueCommand(world, f.id, { type: 'train', role })}
             >
               {ROLE_NAMES[role]}
+            </button>
+          );
+        })}
+      </div>
+      <div className="cmd-row">
+        <span className="cmd-label">兵種</span>
+        {TROOP_ORDER.filter((t) => t !== 'soldier' && isTroopAvailableToRace(t, f.race)).map((troop) => {
+          const def = TROOP_DEFS[troop];
+          const cost = unitCost(world, f, 'warrior', troop);
+          const unlocked = canTrainTroop(f, troop, (t) => hasCompleted(world, f.id, t));
+          const need = [def.tech > f.tech ? `科技 Lv${def.tech}` : '', def.needs && !hasCompleted(world, f.id, def.needs) ? BUILDING_DEFS[def.needs].name : '']
+            .filter(Boolean)
+            .join('、');
+          return (
+            <button
+              key={troop}
+              disabled={!unlocked || popFull || f.resources.food < cost}
+              title={unlocked ? `糧食 ${cost}｜${def.desc}` : `需要 ${need}｜${def.desc}`}
+              onClick={() => issueCommand(world, f.id, { type: 'train', role: 'warrior', troop })}
+            >
+              {troopName(troop, f.race)}
             </button>
           );
         })}

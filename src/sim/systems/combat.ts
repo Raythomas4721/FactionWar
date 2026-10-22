@@ -6,6 +6,8 @@ import { cooldownOf, moraleLossMult } from '../stats';
 import type { Attributes, Building, Faction, Unit, World } from '../types';
 import { areHostile, centerOf, distToBuilding, getBuilding, isTargetable, logEvent, unitLabel } from '../util';
 import { adjustRelation } from './treaties';
+import { revealAfterAttack } from './troopActions';
+import { CHARGE_DISTANCE, CHARGE_MULT, SAPPER_VS_BUILDING, SPEAR_VS_CAVALRY, AMBUSH_MULT } from '../troops';
 import { moveTo } from './movement';
 
 const BUILDING_ARMOR = 2;
@@ -97,10 +99,27 @@ export function strikeUnit(world: World, u: Unit, target: Unit): void {
   if (u.cooldown > 0) return;
   u.cooldown = cooldownOf(u.attrs);
   if (weaponStats(u).ranged) addTracer(world, u, target.x, target.y);
-  if (!world.rng.chance(hitChance(u.attrs, target.attrs))) return;
-  const raw = rawDamage(u) * world.rng.range(0.85, 1.15) * world.rules.damageMult;
+  if (!world.rng.chance(hitChance(u.attrs, target.attrs))) {
+    u.charge = 0;
+    revealAfterAttack(world, u);
+    return;
+  }
+  const raw = rawDamage(u) * world.rng.range(0.85, 1.15) * world.rules.damageMult * troopMultiplier(u, target);
+  u.charge = 0;
+  revealAfterAttack(world, u);
   const dmg = mitigatedDamage(raw, target.attrs, armorOf(target));
   damageUnit(world, target, dmg, u.factionId, unitLabel(u), u);
+}
+
+/** 兵種相剋：騎兵衝鋒、長矛剋騎兵、伏兵暗箭 */
+export function troopMultiplier(u: Unit, target: Unit): number {
+  let mult = 1;
+  if (u.troop === 'cavalry' && u.charge >= CHARGE_DISTANCE && target.troop !== 'spearman') {
+    mult *= CHARGE_MULT[u.race] ?? 2;
+  }
+  if (u.troop === 'spearman' && target.troop === 'cavalry') mult *= SPEAR_VS_CAVALRY;
+  if (u.hidden) mult *= AMBUSH_MULT;
+  return mult;
 }
 
 export function strikeBuilding(world: World, u: Unit, b: Building): void {
@@ -108,14 +127,17 @@ export function strikeBuilding(world: World, u: Unit, b: Building): void {
   u.cooldown = cooldownOf(u.attrs);
   const c = centerOf(b);
   if (weaponStats(u).ranged) addTracer(world, u, c.x, c.y);
-  const dmg = Math.max(1, rawDamage(u) * world.rng.range(0.85, 1.15) * world.rules.damageMult - BUILDING_ARMOR);
+  const siege = u.troop === 'sapper' ? SAPPER_VS_BUILDING : 1;
+  const dmg = Math.max(1, rawDamage(u) * world.rng.range(0.85, 1.15) * world.rules.damageMult * siege - BUILDING_ARMOR);
+  u.charge = 0;
+  revealAfterAttack(world, u);
   damageBuilding(world, b, dmg, u.factionId);
 }
 
 /** 追擊並攻擊一個單位。目標消失或跑太遠回傳 false。 */
 export function attackUnitTick(world: World, u: Unit, targetId: number): boolean {
   const t = world.unitMap.get(targetId);
-  if (!t || !isTargetable(t) || !areHostile(world, u.factionId, t.factionId)) return false;
+  if (!t || !isTargetable(t, u.x, u.y) || !areHostile(world, u.factionId, t.factionId)) return false;
   const d = dist(u.x, u.y, t.x, t.y);
   if (d > SIGHT * 2) return false;
   const w = weaponStats(u);

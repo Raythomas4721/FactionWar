@@ -78,7 +78,7 @@ export function pickSubvertTarget(world: World, u: Unit): Unit | null {
   let best: Unit | null = null;
   let bestScore = 0;
   for (const t of world.units) {
-    if (!isTargetable(t) || t.loyalty >= 75 || !areHostile(world, u.factionId, t.factionId)) continue;
+    if (!isTargetable(t, u.x, u.y) || t.loyalty >= 75 || !areHostile(world, u.factionId, t.factionId)) continue;
     const d = dist(u.x, u.y, t.x, t.y);
     if (d > 30) continue;
     const theirHq = hqOf(world, world.factions[t.factionId]);
@@ -94,7 +94,7 @@ export function pickSubvertTarget(world: World, u: Unit): Unit | null {
 
 export function subvertTick(world: World, u: Unit, targetId: number): boolean {
   const t = world.unitMap.get(targetId);
-  if (!t || !isTargetable(t) || !areHostile(world, u.factionId, t.factionId)) return false;
+  if (!t || !isTargetable(t, u.x, u.y) || !areHostile(world, u.factionId, t.factionId)) return false;
   if (!moveTo(world, u, t.x, t.y, 1.4)) return true;
   if (u.cooldown > 0) return true;
   u.cooldown = SUBVERT_COOLDOWN;

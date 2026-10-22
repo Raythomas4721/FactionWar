@@ -7,7 +7,8 @@ import { armorOf, hitChance, rawDamage } from '../sim/systems/combat';
 import { expectedQuality } from '../sim/systems/crafting';
 import { TICKS_PER_SECOND } from '../sim/constants';
 import type { Building, Unit, World } from '../sim/types';
-import { RESOURCE_NAMES, ROLE_NAMES, getBuilding, hasCompleted } from '../sim/util';
+import { RESOURCE_NAMES, getBuilding, hasCompleted, unitLabel } from '../sim/util';
+import { CHARGE_DISTANCE, TROOP_DEFS, troopName } from '../sim/troops';
 import { formatTime } from './ControlBar';
 import { infectionRisk } from '../sim/systems/health';
 import { persuadeChance } from '../sim/systems/diplomacy';
@@ -67,6 +68,11 @@ function describeAction(world: World, u: Unit): string {
       const to = world.factions[a.target].name;
       return a.returning ? `出使 ${to} 歸來` : `出使 ${to}，提議${a.proposal === 'peace' ? '停戰' : '結盟'}（外交豁免）`;
     }
+    case 'tunnel': {
+      const b = getBuilding(world, a.targetId);
+      return b ? `挖地道前往${world.factions[b.factionId].name}的${BUILDING_DEFS[b.type].name}（地底，無法被攻擊）` : '挖地道';
+    }
+    case 'ambush': return u.hidden ? '林中埋伏（隱身中）' : '前往森林埋伏';
     case 'subvert': {
       const t = world.unitMap.get(a.targetId);
       return t ? `潛入策反 ${RACES[t.race].name} ${t.name}（成功率 ${Math.round(persuadeChance(world, u, t) * 100)}%）` : '策反';
@@ -86,7 +92,7 @@ function UnitView({ world, u }: { world: World; u: Unit }) {
       <div className="iv-title">
         <span className="dot" style={{ background: f.color }} />
         <b>{u.name}</b>
-        <span className="muted">#{u.id} · {RACES[u.race].name}{ROLE_NAMES[u.role]} · {f.name}</span>
+        <span className="muted">#{u.id} · {unitLabel(u).split(' ')[0]} · {f.name}</span>
       </div>
       <div className="iv-status">
         <span>❤ {Math.ceil(u.hp)}/{u.maxHp}</span>
@@ -123,6 +129,12 @@ function UnitView({ world, u }: { world: World; u: Unit }) {
         })}
       </div>
 
+      {u.role === 'warrior' && u.troop !== 'soldier' && (
+        <div className="troop-desc">
+          {troopName(u.troop, u.race)}：{TROOP_DEFS[u.troop].desc}
+          {u.troop === 'cavalry' && <span className="muted">（衝鋒蓄力 {Math.min(100, Math.round((u.charge / CHARGE_DISTANCE) * 100))}%）</span>}
+        </div>
+      )}
       <div className="iv-gear">
         <div>武器：{u.weapon ? itemSummary(u.weapon) : '赤手空拳'}</div>
         <div>護甲：{u.armor ? itemSummary(u.armor) : '無'}</div>
