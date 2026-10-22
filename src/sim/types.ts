@@ -1,5 +1,6 @@
 import type { Rng } from './rng';
 import type { WorldRules } from './rules';
+import type { ItemDef } from './items';
 
 export type RaceId = 'orc' | 'elf' | 'dwarf' | 'human';
 export type AttrKey = 'str' | 'agi' | 'int' | 'con' | 'cha';
@@ -31,6 +32,8 @@ export interface Item {
   defId: string;
   quality: number;
   maker: string;
+  /** 依發明藍圖打造的物品自帶定義（倒戈時也會一起帶走） */
+  custom?: ItemDef;
 }
 
 export type UnitAction =
@@ -109,6 +112,11 @@ export interface Building {
   progress: number;
   complete: boolean;
   cooldown: number;
+  /** 建築品質：由參與建造者的平均智慧決定，影響耐久與效果 */
+  quality: number;
+  /** 建造時累積的（智慧 × 工作量）與工作量，用來算平均智慧 */
+  designInt: number;
+  designWork: number;
 }
 
 export type Command =
@@ -133,6 +141,7 @@ export interface FactionStats {
   /** 被敵人策反走的人數 */
   defected: number;
   treaties: number;
+  inventions: number;
   bestItem: { label: string; power: number } | null;
 }
 
@@ -151,6 +160,8 @@ export interface Faction {
   hqId: number;
   armory: Item[];
   craftQueue: string[];
+  /** 自家發明的裝備藍圖 */
+  blueprints: ItemDef[];
   gatherWeights: Resources;
   /** AI 與（未來的）玩家都透過這個佇列下指令 */
   commands: Command[];
@@ -165,7 +176,8 @@ export interface Faction {
   starving: boolean;
 }
 
-export type EventKind = 'combat' | 'craft' | 'build' | 'tech' | 'faction' | 'god' | 'health' | 'diplomacy' | 'info';
+export type EventKind =
+  | 'combat' | 'craft' | 'invention' | 'build' | 'tech' | 'faction' | 'god' | 'health' | 'diplomacy' | 'info';
 
 export interface GameEvent {
   tick: number;

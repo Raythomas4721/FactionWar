@@ -1,4 +1,5 @@
-import { ITEM_DEFS, itemPower, itemSummary, qualityLabel, type ItemDef } from '../items';
+import { ITEM_DEFS, itemPower, itemSummary, qualityLabel, resolveDef, type ItemDef } from '../items';
+import { maybeInvent } from './invention';
 import { clamp } from '../math';
 import type { Rng } from '../rng';
 import { craftRateOf } from '../stats';
@@ -39,7 +40,7 @@ export function craftWork(def: ItemDef): number {
 export function pickCraftDef(f: Faction, hasForge: boolean, slot: 'weapon' | 'armor', ranged?: boolean): ItemDef | null {
   let best: ItemDef | null = null;
   let bestScore = -1;
-  for (const def of Object.values(ITEM_DEFS)) {
+  for (const def of [...Object.values(ITEM_DEFS), ...f.blueprints]) {
     if (def.slot !== slot || !isItemUnlocked(def, f, hasForge)) continue;
     if (ranged !== undefined && def.ranged !== ranged) continue;
     const score = (slot === 'weapon' ? def.dmg : def.armor) * (def.affinity.includes(f.race) ? 1.2 : 1);
@@ -56,11 +57,11 @@ export function startCraft(world: World, u: Unit): boolean {
   const f = world.factions[u.factionId];
   const hasForge = hasCompleted(world, f.id, 'forge');
   const idx = f.craftQueue.findIndex((id) => {
-    const def = ITEM_DEFS[id];
-    return isItemUnlocked(def, f, hasForge) && canAfford(f.resources, def.cost);
+    const def = resolveDef(f, id);
+    return !!def && isItemUnlocked(def, f, hasForge) && canAfford(f.resources, def.cost);
   });
   if (idx < 0) return false;
-  const def = ITEM_DEFS[f.craftQueue[idx]];
+  const def = resolveDef(f, f.craftQueue[idx])!;
   f.craftQueue.splice(idx, 1);
   pay(f.resources, def.cost);
   u.action = { type: 'craft', defId: def.id, progress: 0, work: craftWork(def) };
@@ -72,7 +73,8 @@ export function startCraft(world: World, u: Unit): boolean {
 export function cancelCraft(world: World, u: Unit): void {
   if (u.action.type !== 'craft') return;
   const f = world.factions[u.factionId];
-  const def = ITEM_DEFS[u.action.defId];
+  const def = resolveDef(f, u.action.defId);
+  if (!def) return;
   pay(f.resources, def.cost, -1);
   f.craftQueue.unshift(def.id);
 }
@@ -81,7 +83,8 @@ export function craftTick(world: World, u: Unit): boolean {
   if (u.action.type !== 'craft') return false;
   const a = u.action;
   const f = world.factions[u.factionId];
-  const def = ITEM_DEFS[a.defId];
+  const def = resolveDef(f, a.defId);
+  if (!def) return false;
   const forge = factionBuildings(world, f.id, 'forge').find((b) => b.complete);
   const station = forge ?? hqOf(world, f);
   if (!station || (def.needsForge && !forge)) {
@@ -99,6 +102,7 @@ export function craftTick(world: World, u: Unit): boolean {
     defId: def.id,
     quality: rollQuality(world.rng, u.attrs, u.race, f.tech, !!forge, def),
     maker: u.name,
+    custom: def.inventor ? def : undefined,
   };
   f.armory.push(item);
   f.stats.crafted++;
@@ -110,5 +114,6 @@ export function craftTick(world: World, u: Unit): boolean {
   if (qualityLabel(item.quality) === '大師之作') {
     logEvent(world, 'craft', `★ ${f.name}誕生了一件大師之作！`, f.id);
   }
+  maybeInvent(world, u, def);
   return false;
 }

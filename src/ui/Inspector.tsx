@@ -1,6 +1,6 @@
 import type { Selection } from '../render/canvasRenderer';
 import { BUILDING_DEFS } from '../sim/buildings';
-import { ITEM_DEFS, itemSummary } from '../sim/items';
+import { ITEM_DEFS, itemSummary, resolveDef } from '../sim/items';
 import { ATTR_KEYS, ATTR_LABELS, RACES } from '../sim/races';
 import { carryOf, cooldownOf, speedOf } from '../sim/stats';
 import { armorOf, hitChance, rawDamage } from '../sim/systems/combat';
@@ -12,6 +12,7 @@ import { CHARGE_DISTANCE, TROOP_DEFS, troopName } from '../sim/troops';
 import { formatTime } from './ControlBar';
 import { infectionRisk } from '../sim/systems/health';
 import { persuadeChance } from '../sim/systems/diplomacy';
+import { inventionChance } from '../sim/systems/invention';
 
 const ATTR_HINTS: Record<string, string> = {
   str: '近戰傷害、採集量、建造速度',
@@ -52,7 +53,8 @@ function describeAction(world: World, u: Unit): string {
       const b = getBuilding(world, a.buildingId);
       return b ? `建造${BUILDING_DEFS[b.type].name}（${Math.round(b.progress * 100)}%）` : '建造中';
     }
-    case 'craft': return `打造${ITEM_DEFS[a.defId].name}（${Math.round((a.progress / a.work) * 100)}%）`;
+    case 'craft':
+      return `打造${resolveDef(world.factions[u.factionId], a.defId)?.name ?? '裝備'}（${Math.round((a.progress / a.work) * 100)}%）`;
     case 'attackUnit': {
       const t = world.unitMap.get(a.targetId);
       return t ? `攻擊 ${RACES[t.race].name} ${t.name}` : '攻擊';
@@ -149,6 +151,7 @@ function UnitView({ world, u }: { world: World; u: Unit }) {
         <span>移速 {(speedOf(u.attrs) * TICKS_PER_SECOND).toFixed(1)} 格/秒</span>
         {u.role !== 'warrior' && <span>背包 {carryOf(u.attrs)}</span>}
         {smithQuality !== null && <span>打造品質預估 ×{smithQuality.toFixed(2)}</span>}
+        {u.role === 'smith' && <span>每件發明機率 {Math.round(inventionChance(world, u, f) * 100)}%</span>}
       </div>
     </div>
   );
@@ -167,6 +170,12 @@ function BuildingView({ world, b }: { world: World; b: Building }) {
       <div className="iv-status">
         <span>❤ {Math.ceil(b.hp)}/{b.maxHp}</span>
         <span>{b.complete ? '已完工' : `建造中 ${Math.round(b.progress * 100)}%`}</span>
+        {b.complete && b.type !== 'hq' && (
+          <span title="由建造者的平均智慧決定，影響耐久與效果">建築品質 ×{b.quality.toFixed(2)}</span>
+        )}
+        {!b.complete && b.designWork > 0 && (
+          <span className="muted">建造者平均智慧 {(b.designInt / b.designWork).toFixed(1)}</span>
+        )}
       </div>
       <p>{def.desc}</p>
       {b.type === 'hq' && (
@@ -178,7 +187,7 @@ function BuildingView({ world, b }: { world: World; b: Building }) {
             ))}
           </ul>
           {f.craftQueue.length > 0 && (
-            <div className="muted">待打造：{f.craftQueue.map((id) => ITEM_DEFS[id].name).join('、')}</div>
+            <div className="muted">待打造：{f.craftQueue.map((id) => resolveDef(f, id)?.name ?? id).join('、')}</div>
           )}
         </div>
       )}

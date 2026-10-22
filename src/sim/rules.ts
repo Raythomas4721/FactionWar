@@ -19,6 +19,8 @@ export interface WorldRules {
   upkeepMult: number;
   /** 策反成功率倍率，0 = 不會策反 */
   subvertMult: number;
+  /** 發明機率倍率，0 = 不會發明 */
+  inventionMult: number;
   /** 所有存活陣營都結盟時，算結盟共治勝利 */
   allianceVictory: boolean;
   /** 地圖資源蘊藏量倍率（新局生效） */
@@ -40,6 +42,7 @@ export const DEFAULT_RULES: WorldRules = {
   diseaseMult: 1,
   upkeepMult: 1,
   subvertMult: 1,
+  inventionMult: 1,
   allianceVictory: true,
   resourceRichness: 1,
   startTech: 0,
@@ -70,6 +73,7 @@ export const RULE_DEFS: RuleDef[] = [
   { key: 'researchMult', label: '研究速度', min: 0.5, max: 5, step: 0.25, live: true, format: times },
   { key: 'diseaseMult', label: '疫病強度', min: 0, max: 3, step: 0.25, live: true, format: (v) => (v ? times(v) : '沒有疾病') },
   { key: 'upkeepMult', label: '糧食消耗', min: 0, max: 2, step: 0.25, live: true, format: (v) => (v ? times(v) : '不用吃飯') },
+  { key: 'inventionMult', label: '發明頻率', min: 0, max: 3, step: 0.25, live: true, format: (v) => (v ? times(v) : '不會發明') },
   { key: 'subvertMult', label: '策反成功率', min: 0, max: 3, step: 0.25, live: true, format: (v) => (v ? times(v) : '不會策反') },
   { key: 'resourceRichness', label: '資源蘊藏', min: 0.5, max: 3, step: 0.25, live: false, format: times },
   { key: 'startTech', label: '開局科技', min: 0, max: 4, step: 1, live: false, format: (v) => `Lv${v}` },

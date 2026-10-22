@@ -1,4 +1,4 @@
-import { ITEM_DEFS, itemPower } from '../items';
+import { itemDef, itemPower } from '../items';
 import { TROOP_DEFS } from '../troops';
 import type { Faction, Item, Unit, World } from '../types';
 import { centerOf, hqOf } from '../util';
@@ -9,7 +9,7 @@ function currentPower(u: Unit, slot: 'weapon' | 'armor'): number {
   const item = slot === 'weapon' ? u.weapon : u.armor;
   if (!item) return 0;
   const pref = TROOP_DEFS[u.troop].weapon;
-  if (slot === 'weapon' && pref !== 'any' && ITEM_DEFS[item.defId].ranged !== (pref === 'ranged')) return 0;
+  if (slot === 'weapon' && pref !== 'any' && itemDef(item).ranged !== (pref === 'ranged')) return 0;
   return itemPower(item);
 }
 
@@ -18,7 +18,7 @@ export function bestArmoryUpgrade(f: Faction, u: Unit): { index: number; gain: n
   let best: { index: number; gain: number } | null = null;
   const pref = TROOP_DEFS[u.troop].weapon;
   f.armory.forEach((item, index) => {
-    const def = ITEM_DEFS[item.defId];
+    const def = itemDef(item);
     const slot = def.slot;
     if (slot === 'weapon' && pref !== 'any' && def.ranged !== (pref === 'ranged')) return;
     const gain = itemPower(item) - currentPower(u, slot);
@@ -38,7 +38,7 @@ export function equipTick(world: World, u: Unit): boolean {
   if (up) {
     const [item] = f.armory.splice(up.index, 1);
     let old: Item | null;
-    if (ITEM_DEFS[item.defId].slot === 'weapon') {
+    if (itemDef(item).slot === 'weapon') {
       old = u.weapon;
       u.weapon = item;
     } else {

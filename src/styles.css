@@ -405,6 +405,10 @@ input {
   font-size: 12px;
   color: var(--accent);
 }
+.fc-blueprints {
+  font-size: 12px;
+  color: #ffe9a8;
+}
 .traits {
   margin: 4px 0 0;
   padding-left: 16px;

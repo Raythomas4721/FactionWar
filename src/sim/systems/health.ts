@@ -2,6 +2,7 @@ import { clamp, dist } from '../math';
 import { RACES } from '../races';
 import { diseaseResistOf, recoveryRateOf } from '../stats';
 import { TROOP_DEFS } from '../troops';
+import { hasTrait } from '../items';
 import type { Faction, Unit, World } from '../types';
 import { centerOf, factionBuildings, logEvent, unitLabel } from '../util';
 import { handleDeath } from './combat';
@@ -21,7 +22,8 @@ const INFIRMARY_RADIUS = 4;
 
 /** 這名小人實際的染病機率倍率：體質 × 種族 × 世界法則 */
 export function infectionRisk(world: World, u: Unit): number {
-  return diseaseResistOf(u.attrs) * RACES[u.race].diseaseMult * world.rules.diseaseMult;
+  const blessed = hasTrait(u.armor, 'blessed') ? 0.5 : 1;
+  return diseaseResistOf(u.attrs) * RACES[u.race].diseaseMult * world.rules.diseaseMult * blessed;
 }
 
 /** 要吃飯的「人份」：騎兵連坐騎算 1.5 份 */
@@ -87,8 +89,13 @@ export function updateHunger(world: World): void {
 export function updateDisease(world: World): void {
   const rng = world.rng;
   const infirmaries = world.buildings.filter((b) => b.type === 'infirmary' && b.complete && b.hp > 0);
-  const nearInfirmary = (u: Unit) =>
-    infirmaries.some((b) => b.factionId === u.factionId && dist(u.x, u.y, centerOf(b).x, centerOf(b).y) <= INFIRMARY_RADIUS);
+  /** 附近有自家醫館時的康復倍率（品質 1 時 ×3） */
+  const healMult = (u: Unit) => {
+    const b = infirmaries.find(
+      (i) => i.factionId === u.factionId && dist(u.x, u.y, centerOf(i).x, centerOf(i).y) <= INFIRMARY_RADIUS,
+    );
+    return b ? 1 + 2 * b.quality : 1;
+  };
   const sickBefore = new Map<number, number>();
   for (const u of world.units) if (u.sick) sickBefore.set(u.factionId, (sickBefore.get(u.factionId) ?? 0) + 1);
 
@@ -117,7 +124,7 @@ export function updateDisease(world: World): void {
     if (!u.sick || u.hp <= 0) continue;
     u.morale = clamp(u.morale - 0.02, 0, 100);
     naturalDamage(world, u, SICK_DAMAGE, 'disease');
-    const p = recoveryRateOf(u.attrs) * (nearInfirmary(u) ? 3 : 1);
+    const p = recoveryRateOf(u.attrs) * healMult(u);
     if (u.hp > 0 && rng.chance(p)) {
       u.sick = false;
       u.immuneUntil = world.tick + IMMUNITY_TICKS;

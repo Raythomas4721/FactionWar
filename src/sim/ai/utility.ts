@@ -1,5 +1,5 @@
 import { HQ_THREAT_RADIUS, MAX_BUILDERS, MILITIA_RADIUS, SIGHT } from '../constants';
-import { ITEM_DEFS } from '../items';
+import { resolveDef } from '../items';
 import { dist } from '../math';
 import { carryOf } from '../stats';
 import type { Faction, ResourceKind, Unit, UnitAction, World } from '../types';
@@ -221,8 +221,8 @@ function civilianOptions(world: World, u: Unit, f: Faction, add: (s: number, a: 
 function hasAffordableCraft(world: World, f: Faction): boolean {
   const hasForge = hasCompleted(world, f.id, 'forge');
   return f.craftQueue.some((id) => {
-    const def = ITEM_DEFS[id];
-    return isItemUnlocked(def, f, hasForge) && canAfford(f.resources, def.cost);
+    const def = resolveDef(f, id);
+    return !!def && isItemUnlocked(def, f, hasForge) && canAfford(f.resources, def.cost);
   });
 }
 

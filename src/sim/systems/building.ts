@@ -10,6 +10,7 @@ import {
   areHostile, canAfford, centerOf, getBuilding, hqOf, isTargetable, logEvent, pay, sickMult, tileAt,
 } from '../util';
 import { damageUnit } from './combat';
+import { buildingQualityOf } from './invention';
 import { moveTo } from './movement';
 
 export function isBuildingUnlocked(f: Faction, type: BuildingType): boolean {
@@ -59,6 +60,9 @@ export function createBuilding(world: World, f: Faction, type: BuildingType, x: 
     progress: complete ? 1 : 0,
     complete,
     cooldown: 0,
+    quality: 1,
+    designInt: 0,
+    designWork: 0,
   };
   world.buildings.push(b);
   return b;
@@ -83,16 +87,32 @@ export function buildTick(world: World, u: Unit, buildingId: number): boolean {
   const c = centerOf(b);
   if (!moveTo(world, u, c.x, c.y, 1.6)) return true;
   const def = BUILDING_DEFS[b.type];
-  b.progress = Math.min(1, b.progress + (buildRateOf(u.attrs) * RACES[u.race].buildSpeed * sickMult(u)) / def.work);
+  const work = (buildRateOf(u.attrs) * RACES[u.race].buildSpeed * sickMult(u)) / def.work;
+  b.progress = Math.min(1, b.progress + work);
+  b.designInt += work * u.attrs.int;
+  b.designWork += work;
   b.hp = Math.max(b.hp, def.hp * (0.1 + 0.9 * b.progress));
   if (b.progress >= 1) {
-    b.complete = true;
-    const f = world.factions[b.factionId];
-    f.stats.built++;
-    logEvent(world, 'build', `${f.name} 的${def.name}完工了`, f.id);
+    completeBuilding(world, b);
     return false;
   }
   return true;
+}
+
+/** 完工：依建造者的平均智慧決定建築品質（耐久與效果） */
+export function completeBuilding(world: World, b: Building): void {
+  const def = BUILDING_DEFS[b.type];
+  const f = world.factions[b.factionId];
+  b.complete = true;
+  b.quality = b.designWork > 0 ? buildingQualityOf(b.designInt / b.designWork) : 1;
+  b.maxHp = Math.round(def.hp * b.quality);
+  b.hp = b.maxHp;
+  f.stats.built++;
+  const q = `品質 ×${b.quality.toFixed(2)}`;
+  let note = '';
+  if (b.quality >= 1.15) note = `，出自巧匠之手（${q}）`;
+  else if (b.quality <= 0.85) note = `，但蓋得歪歪斜斜（${q}）`;
+  logEvent(world, 'build', `${f.name} 的${def.name}完工了${note}`, f.id);
 }
 
 /** 已完工建築的被動效果：生產糧食、營帳與箭塔射擊 */
@@ -100,7 +120,7 @@ export function updateBuildings(world: World): void {
   for (const b of world.buildings) {
     if (b.hp <= 0 || !b.complete) continue;
     const f = world.factions[b.factionId];
-    if (b.type === 'farm') f.resources.food += FARM_FOOD_PER_TICK;
+    if (b.type === 'farm') f.resources.food += FARM_FOOD_PER_TICK * b.quality;
     if (b.type === 'hq') f.resources.food += HQ_FOOD_PER_TICK;
 
     const turret = TURRETS[b.type];
@@ -123,7 +143,8 @@ export function updateBuildings(world: World): void {
     if (!target) continue;
     b.cooldown = turret.cooldown;
     world.effects.push({ x1: c.x, y1: c.y, x2: target.x, y2: target.y, ttl: 3, maxTtl: 3, color: f.color });
-    const dmg = (b.type === 'tower' ? turret.dmg * RACES[f.race].towerDamageMult : turret.dmg) * world.rules.damageMult;
+    const dmg =
+      (b.type === 'tower' ? turret.dmg * RACES[f.race].towerDamageMult : turret.dmg) * world.rules.damageMult * b.quality;
     damageUnit(world, target, dmg, f.id, `${f.name}的${BUILDING_DEFS[b.type].name}`);
   }
 }

@@ -1,5 +1,5 @@
 import { BARRACKS_DISCOUNT } from './buildings';
-import { ITEM_DEFS } from './items';
+import { resolveDef } from './items';
 import { RACES } from './races';
 import { TROOP_DEFS, canTrainTroop } from './troops';
 import type { Command, Faction, Role, Troop, World } from './types';
@@ -42,7 +42,7 @@ export function processCommands(world: World, f: Faction): void {
         placeBuilding(world, f, cmd.building);
         break;
       case 'craft':
-        if (ITEM_DEFS[cmd.defId] && f.craftQueue.length < MAX_CRAFT_QUEUE) f.craftQueue.push(cmd.defId);
+        if (resolveDef(f, cmd.defId) && f.craftQueue.length < MAX_CRAFT_QUEUE) f.craftQueue.push(cmd.defId);
         break;
       case 'propose': {
         const t = getTreaty(world, f.id, cmd.target);

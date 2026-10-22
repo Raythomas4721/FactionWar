@@ -46,7 +46,7 @@ export const RACES: Record<RaceId, RaceDef> = {
     factionName: '獸人部落',
     color: '#8bd450',
     base: { str: 14, agi: 9, int: 6, con: 13, cha: 6 },
-    unitCost: 24,
+    unitCost: 22,
     popPerHouse: 6,
     towerDamageMult: 1,
     maxTowers: 2,

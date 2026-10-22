@@ -1,6 +1,6 @@
 import { BUILDING_DEFS } from '../sim/buildings';
 import { BUILDING_SIZE } from '../sim/constants';
-import { ITEM_DEFS } from '../sim/items';
+import { itemDef } from '../sim/items';
 import type { TileKind, Unit, World } from '../sim/types';
 
 export const TILE_PX = 12;
@@ -189,7 +189,7 @@ export class CanvasRenderer {
         ctx.fillRect(x - 3, y - 6.5, 6, 2.5);
       }
       if (u.weapon && u.troop !== 'spearman') {
-        const def = ITEM_DEFS[u.weapon.defId];
+        const def = itemDef(u.weapon);
         ctx.strokeStyle = def.ranged ? '#ffe9a8' : '#e8e8e8';
         ctx.lineWidth = 1.5;
         ctx.beginPath();

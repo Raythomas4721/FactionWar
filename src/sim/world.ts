@@ -85,12 +85,13 @@ export function createFaction(world: World, race: RaceId, races: RaceId[]): Fact
     hqId: -1,
     armory: [],
     craftQueue: [],
+    blueprints: [],
     gatherWeights: { food: 3, wood: 2, stone: 0.4, ore: 0.05 },
     commands: [],
     relations: races.map((other) => (other === race ? 100 : RIVALRY[race][other])),
     stats: {
       kills: 0, deaths: 0, crafted: 0, built: 0, trained: 0,
-      infections: 0, diseaseDeaths: 0, starved: 0, recruited: 0, defected: 0, treaties: 0, bestItem: null,
+      infections: 0, diseaseDeaths: 0, starved: 0, recruited: 0, defected: 0, treaties: 0, inventions: 0, bestItem: null,
     },
     nextAiAt: 1 + world.factions.length * 5,
     nextDiplomacyAt: 600 + world.factions.length * 50,
@@ -237,7 +238,10 @@ function updateResearch(world: World): void {
     if (!f.alive || f.tech >= MAX_TECH) continue;
     let intSum = 0;
     for (const u of world.units) if (u.factionId === f.id && u.hp > 0 && u.role !== 'warrior') intSum += u.attrs.int;
-    const libraries = factionBuildings(world, f.id, 'library').filter((b) => b.complete).length;
+    // 書院的效果隨建築品質增減
+    const libraries = factionBuildings(world, f.id, 'library')
+      .filter((b) => b.complete)
+      .reduce((s, b) => s + b.quality, 0);
     f.research += 0.004 * intSum * (1 + RACES[f.race].libraryBonus * libraries) * world.rules.researchMult;
     while (f.tech < MAX_TECH && f.research >= TECH_THRESHOLDS[f.tech + 1]) {
       f.tech++;

@@ -5,6 +5,7 @@ import { formatTime } from './ControlBar';
 const ICONS: Record<EventKind, string> = {
   combat: '⚔',
   craft: '⚒',
+  invention: '💡',
   build: '🏠',
   tech: '📜',
   faction: '🚩',
@@ -20,7 +21,7 @@ const FILTERS: { label: string; kinds: EventKind[] | null }[] = [
   { label: '神蹟', kinds: ['god'] },
   { label: '民生', kinds: ['health'] },
   { label: '外交', kinds: ['diplomacy'] },
-  { label: '打造', kinds: ['craft'] },
+  { label: '打造', kinds: ['craft', 'invention'] },
   { label: '建設', kinds: ['build', 'tech'] },
 ];
 

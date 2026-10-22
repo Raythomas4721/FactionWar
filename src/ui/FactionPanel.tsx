@@ -131,9 +131,14 @@ function FactionCard({ world, f }: { world: World; f: Faction }) {
       <div className="fc-row muted">
         <span>擊殺 {f.stats.kills} · 陣亡 {f.stats.deaths} · 打造 {f.stats.crafted} · 軍械庫 {f.armory.length}</span>
         <span>染病 {f.stats.infections} · 病死 {f.stats.diseaseDeaths} · 餓死 {f.stats.starved}</span>
-        <span>招降 {f.stats.recruited} · 叛逃 {f.stats.defected} · 締約 {f.stats.treaties}</span>
+        <span>招降 {f.stats.recruited} · 叛逃 {f.stats.defected} · 締約 {f.stats.treaties} · 發明 {f.stats.inventions}</span>
       </div>
       {f.stats.bestItem && <div className="fc-best">最佳裝備：{f.stats.bestItem.label}</div>}
+      {f.blueprints.length > 0 && (
+        <div className="fc-blueprints" title={f.blueprints.map((b) => `${b.name}（威力 ×${b.powerMult?.toFixed(2)}）`).join('\n')}>
+          💡 藍圖 {f.blueprints.length}：{f.blueprints.map((b) => b.name).join('、')}
+        </div>
+      )}
 
       <ul className="traits">
         {race.traits.map((t) => (

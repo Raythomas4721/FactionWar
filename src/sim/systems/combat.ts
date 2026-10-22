@@ -1,12 +1,13 @@
 import { BUILDING_DEFS } from '../buildings';
 import { MELEE_RANGE, SIGHT } from '../constants';
-import { FIST_DMG, ITEM_DEFS } from '../items';
+import { FIST_DMG, hasTrait, itemDef } from '../items';
 import { clamp, dist } from '../math';
 import { cooldownOf, moraleLossMult } from '../stats';
 import type { Attributes, Building, Faction, Unit, World } from '../types';
 import { areHostile, centerOf, distToBuilding, getBuilding, isTargetable, logEvent, unitLabel } from '../util';
 import { adjustRelation } from './treaties';
 import { revealAfterAttack } from './troopActions';
+import { infect, infectionRisk } from './health';
 import { CHARGE_DISTANCE, CHARGE_MULT, SAPPER_VS_BUILDING, SPEAR_VS_CAVALRY, AMBUSH_MULT } from '../troops';
 import { moveTo } from './movement';
 
@@ -14,12 +15,12 @@ const BUILDING_ARMOR = 2;
 
 export function weaponStats(u: Unit): { dmg: number; range: number; ranged: boolean } {
   if (!u.weapon) return { dmg: FIST_DMG, range: MELEE_RANGE, ranged: false };
-  const def = ITEM_DEFS[u.weapon.defId];
+  const def = itemDef(u.weapon);
   return { dmg: def.dmg * u.weapon.quality, range: def.range, ranged: def.ranged };
 }
 
 export function armorOf(u: Unit): number {
-  return u.armor ? ITEM_DEFS[u.armor.defId].armor * u.armor.quality : 0;
+  return u.armor ? itemDef(u.armor).armor * u.armor.quality : 0;
 }
 
 /** 命中率：攻方敏捷對守方敏捷 */
@@ -34,10 +35,13 @@ export function rawDamage(u: Unit): number {
   return u.sick ? base * 0.75 : base;
 }
 
-/** 扣掉護甲與體質減免，最少 1 點 */
-export function mitigatedDamage(raw: number, def: Attributes, armor: number): number {
-  return Math.max(1, raw - armor - def.con * 0.2);
+/** 扣掉護甲與體質減免，最少 1 點；破甲武器只吃三成護甲、一半體質減免 */
+export function mitigatedDamage(raw: number, def: Attributes, armor: number, pierce = false): number {
+  return Math.max(1, raw - armor * (pierce ? 0.3 : 1) - def.con * 0.2 * (pierce ? 0.5 : 1));
 }
+
+/** 輕羽武器攻速 +25% */
+const attackCooldown = (u: Unit) => Math.round(cooldownOf(u.attrs) * (hasTrait(u.weapon, 'swift') ? 0.8 : 1));
 
 export function damageUnit(world: World, target: Unit, dmg: number, byFaction: number, byLabel: string, byUnit?: Unit): void {
   if (target.hp <= 0) return;
@@ -97,7 +101,7 @@ function addTracer(world: World, u: Unit, x: number, y: number) {
 
 export function strikeUnit(world: World, u: Unit, target: Unit): void {
   if (u.cooldown > 0) return;
-  u.cooldown = cooldownOf(u.attrs);
+  u.cooldown = attackCooldown(u);
   if (weaponStats(u).ranged) addTracer(world, u, target.x, target.y);
   if (!world.rng.chance(hitChance(u.attrs, target.attrs))) {
     u.charge = 0;
@@ -107,8 +111,12 @@ export function strikeUnit(world: World, u: Unit, target: Unit): void {
   const raw = rawDamage(u) * world.rng.range(0.85, 1.15) * world.rules.damageMult * troopMultiplier(u, target);
   u.charge = 0;
   revealAfterAttack(world, u);
-  const dmg = mitigatedDamage(raw, target.attrs, armorOf(target));
+  const dmg = mitigatedDamage(raw, target.attrs, armorOf(target), hasTrait(u.weapon, 'pierce'));
   damageUnit(world, target, dmg, u.factionId, unitLabel(u), u);
+  // 淬毒：命中後可能讓對方染病（體質與抗性照算）
+  if (target.hp > 0 && hasTrait(u.weapon, 'venom') && world.rng.chance(0.3 * infectionRisk(world, target))) {
+    infect(world, target);
+  }
 }
 
 /** 兵種相剋：騎兵衝鋒、長矛剋騎兵、伏兵暗箭 */
@@ -124,10 +132,10 @@ export function troopMultiplier(u: Unit, target: Unit): number {
 
 export function strikeBuilding(world: World, u: Unit, b: Building): void {
   if (u.cooldown > 0) return;
-  u.cooldown = cooldownOf(u.attrs);
+  u.cooldown = attackCooldown(u);
   const c = centerOf(b);
   if (weaponStats(u).ranged) addTracer(world, u, c.x, c.y);
-  const siege = u.troop === 'sapper' ? SAPPER_VS_BUILDING : 1;
+  const siege = (u.troop === 'sapper' ? SAPPER_VS_BUILDING : 1) * (hasTrait(u.weapon, 'flame') ? 2 : 1);
   const dmg = Math.max(1, rawDamage(u) * world.rng.range(0.85, 1.15) * world.rules.damageMult * siege - BUILDING_ARMOR);
   u.charge = 0;
   revealAfterAttack(world, u);

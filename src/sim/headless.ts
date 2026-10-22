@@ -14,6 +14,7 @@ export interface FactionResult {
   starved: number;
   recruited: number;
   treaties: number;
+  inventions: number;
   score: number;
 }
 
@@ -49,6 +50,7 @@ export function runGame(seed: number, opts: WorldOptions = {}): GameResult {
       starved: f.stats.starved,
       recruited: f.stats.recruited,
       treaties: f.stats.treaties,
+      inventions: f.stats.inventions,
       score: score(world, f),
     })),
   };

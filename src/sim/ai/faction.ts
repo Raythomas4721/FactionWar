@@ -2,7 +2,7 @@ import { buildingCost } from '../buildings';
 import { HQ_THREAT_RADIUS, TICKS_PER_SECOND } from '../constants';
 import { eatersOf, upkeepOf } from '../systems/health';
 import { TROOP_MIX, canTrainTroop, isTroopAvailableToRace } from '../troops';
-import { ITEM_DEFS, itemPower } from '../items';
+import { itemDef, itemPower, resolveDef } from '../items';
 import { dist } from '../math';
 import { RACES } from '../races';
 import type { BuildingType, Command, Faction, Role, Troop, Unit, World } from '../types';
@@ -213,10 +213,10 @@ function decideCrafting(f: Faction, warriors: Unit[], hasForge: boolean, cmds: C
   const bestDmg = Math.max(melee?.dmg ?? 0, ranged?.dmg ?? 0);
   const goodEnough = (p: number) => p >= bestDmg * 0.7;
   const weaponsNeeded = warriors.filter((w) => !w.weapon || !goodEnough(itemPower(w.weapon))).length;
-  const weaponsInStock = f.armory.filter((i) => ITEM_DEFS[i.defId].slot === 'weapon' && goodEnough(itemPower(i))).length;
+  const weaponsInStock = f.armory.filter((i) => itemDef(i).slot === 'weapon' && goodEnough(itemPower(i))).length;
   if (weaponsNeeded > weaponsInStock) {
-    const rangedCount = warriors.filter((w) => w.weapon && ITEM_DEFS[w.weapon.defId].ranged).length;
-    const rangersUnarmed = warriors.some((w) => w.troop === 'ranger' && (!w.weapon || !ITEM_DEFS[w.weapon.defId].ranged));
+    const rangedCount = warriors.filter((w) => w.weapon && itemDef(w.weapon).ranged).length;
+    const rangersUnarmed = warriors.some((w) => w.troop === 'ranger' && (!w.weapon || !itemDef(w.weapon).ranged));
     const wantRanged =
       rangersUnarmed || warriors.length === 0 || rangedCount / warriors.length < RACES[f.race].rangedShare;
     const def = (wantRanged ? ranged : melee) ?? melee ?? ranged;
@@ -226,7 +226,7 @@ function decideCrafting(f: Faction, warriors: Unit[], hasForge: boolean, cmds: C
 
   if (!armor) return;
   const armorNeeded = warriors.filter((w) => !w.armor || itemPower(w.armor) < armor.armor * 0.7).length;
-  const armorInStock = f.armory.filter((i) => ITEM_DEFS[i.defId].slot === 'armor').length;
+  const armorInStock = f.armory.filter((i) => itemDef(i).slot === 'armor').length;
   const canSpare = armor.cost.food === undefined || f.resources.food > 60;
   if (armorNeeded > armorInStock && canSpare) cmds.push({ type: 'craft', defId: armor.id });
 }
@@ -235,7 +235,7 @@ function decideCrafting(f: Faction, warriors: Unit[], hasForge: boolean, cmds: C
 function setGatherWeights(f: Faction, hasForge: boolean): void {
   const r = f.resources;
   const metalAge = hasForge || f.tech >= 1;
-  const queueNeedsOre = f.craftQueue.some((id) => (ITEM_DEFS[id].cost.ore ?? 0) > 0);
+  const queueNeedsOre = f.craftQueue.some((id) => (resolveDef(f, id)?.cost.ore ?? 0) > 0);
   f.gatherWeights = {
     food: 3 / (r.food / 40 + 1),
     wood: 2 / (r.wood / 60 + 1),

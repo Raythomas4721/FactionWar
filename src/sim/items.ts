@@ -1,5 +1,17 @@
 import { MELEE_RANGE } from './constants';
-import type { Item, RaceId, Resources } from './types';
+import type { Faction, Item, RaceId, Resources } from './types';
+
+/** 發明藍圖附帶的特殊效果 */
+export type TraitId = 'venom' | 'flame' | 'pierce' | 'swift' | 'sturdy' | 'blessed';
+
+export const TRAITS: Record<TraitId, { name: string; adj: string; slot: 'weapon' | 'armor'; desc: string }> = {
+  venom: { name: '淬毒', adj: '淬毒', slot: 'weapon', desc: '命中時可能讓敵人染病' },
+  flame: { name: '烈焰', adj: '烈焰', slot: 'weapon', desc: '對建築傷害 ×2' },
+  pierce: { name: '破甲', adj: '破甲', slot: 'weapon', desc: '無視大部分護甲與體質減傷' },
+  swift: { name: '輕羽', adj: '輕羽', slot: 'weapon', desc: '攻擊速度 +25%' },
+  sturdy: { name: '堅固', adj: '堅固', slot: 'armor', desc: '減傷再 +30%' },
+  blessed: { name: '祝聖', adj: '祝聖', slot: 'armor', desc: '穿戴者染病風險減半' },
+};
 
 export interface ItemDef {
   id: string;
@@ -16,6 +28,25 @@ export interface ItemDef {
   affinity: RaceId[];
   /** 只有這個種族能打造 */
   onlyRace?: RaceId;
+  /** 以下為發明藍圖才有 */
+  traits?: TraitId[];
+  inventor?: string;
+  baseId?: string;
+  powerMult?: number;
+}
+
+/** 物品的定義：發明出來的物品自帶藍圖，其他查內建表 */
+export function itemDef(item: Item): ItemDef {
+  return item.custom ?? ITEM_DEFS[item.defId];
+}
+
+/** 打造佇列裡的 id：藍圖（bp: 開頭）查陣營自己的藍圖，其他查內建表 */
+export function resolveDef(f: Faction, id: string): ItemDef | undefined {
+  return id.startsWith('bp:') ? f.blueprints.find((b) => b.id === id) : ITEM_DEFS[id];
+}
+
+export function hasTrait(item: Item | null, trait: TraitId): boolean {
+  return !!item && !!itemDef(item).traits?.includes(trait);
 }
 
 const weapon = (
@@ -86,17 +117,18 @@ export function qualityLabel(q: number): string {
 
 /** 實際效果：武器為傷害，護甲為減傷 */
 export function itemPower(item: Item): number {
-  const def = ITEM_DEFS[item.defId];
+  const def = itemDef(item);
   return (def.slot === 'weapon' ? def.dmg : def.armor) * item.quality;
 }
 
 export function itemName(item: Item): string {
-  return `【${qualityLabel(item.quality)}】${ITEM_DEFS[item.defId].name}`;
+  return `【${qualityLabel(item.quality)}】${itemDef(item).name}`;
 }
 
 export function itemSummary(item: Item): string {
-  const def = ITEM_DEFS[item.defId];
+  const def = itemDef(item);
   const p = itemPower(item).toFixed(1);
-  if (def.slot === 'armor') return `${itemName(item)}（減傷 ${p}）`;
-  return `${itemName(item)}（${def.ranged ? '遠程' : '近戰'}傷害 ${p}）`;
+  const traits = def.traits?.length ? `｜${def.traits.map((t) => TRAITS[t].name).join('、')}` : '';
+  if (def.slot === 'armor') return `${itemName(item)}（減傷 ${p}${traits}）`;
+  return `${itemName(item)}（${def.ranged ? '遠程' : '近戰'}傷害 ${p}${traits}）`;
 }
