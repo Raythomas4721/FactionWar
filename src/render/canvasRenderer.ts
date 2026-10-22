@@ -188,6 +188,15 @@ export class CanvasRenderer {
       ctx.fill();
     }
     ctx.globalAlpha = 1;
+    if (u.sick) {
+      ctx.strokeStyle = '#b6ff3b';
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([2, 2]);
+      ctx.beginPath();
+      ctx.arc(x, y, 6, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
     if (u.hp < u.maxHp) bar(ctx, x - 5, y - 8, 10, u.hp / u.maxHp, hpColor(u.hp / u.maxHp));
     if (selection?.kind === 'unit' && selection.id === u.id) {
       ctx.strokeStyle = '#ffe14d';

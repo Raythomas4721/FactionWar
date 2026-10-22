@@ -89,7 +89,7 @@ export function App() {
     if (import.meta.env.DEV) (window as unknown as { __world: () => World }).__world = () => worldRef.current;
   }, []);
 
-  // 快捷鍵：1–6 選神力、Esc 取消、空白鍵暫停
+  // 快捷鍵：1–7 選神力、Esc 取消、空白鍵暫停
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLButtonElement) return;

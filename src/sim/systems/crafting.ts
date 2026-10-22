@@ -4,7 +4,7 @@ import type { Rng } from '../rng';
 import { craftRateOf } from '../stats';
 import type { Attributes, Faction, Item, RaceId, Unit, World } from '../types';
 import {
-  canAfford, centerOf, factionBuildings, hasCompleted, hqOf, logEvent, pay, unitLabel,
+  canAfford, centerOf, factionBuildings, hasCompleted, hqOf, logEvent, pay, sickMult, unitLabel,
 } from '../util';
 import { moveTo } from './movement';
 
@@ -91,7 +91,7 @@ export function craftTick(world: World, u: Unit): boolean {
   const c = centerOf(station);
   if (!moveTo(world, u, c.x, c.y, 1.6)) return true;
 
-  a.progress += craftRateOf(u.attrs) * (forge ? 1.3 : 1);
+  a.progress += craftRateOf(u.attrs) * (forge ? 1.3 : 1) * sickMult(u);
   if (a.progress < a.work) return true;
 
   const item: Item = {

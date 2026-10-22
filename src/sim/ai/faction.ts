@@ -1,5 +1,6 @@
 import { buildingCost } from '../buildings';
-import { HQ_THREAT_RADIUS } from '../constants';
+import { HQ_THREAT_RADIUS, TICKS_PER_SECOND } from '../constants';
+import { upkeepOf } from '../systems/health';
 import { ITEM_DEFS, itemPower } from '../items';
 import { dist } from '../math';
 import { RACES } from '../races';
@@ -26,7 +27,7 @@ export function runFactionAi(world: World, f: Faction): void {
 
   decideStance(world, f, warriors, cmds);
   decideTraining(world, f, units, hasForge, cmds);
-  decideBuilding(world, f, units.length, cmds);
+  decideBuilding(world, f, units, cmds);
   decideCrafting(f, warriors, hasForge, cmds);
   setGatherWeights(f, hasForge);
 
@@ -55,7 +56,7 @@ function decideStance(world: World, f: Faction, warriors: Unit[], cmds: Command[
   if (world.tick < peaceTicksOf(world.rules)) return;
   const armed = warriors.filter((w) => w.weapon).length;
   const ready =
-    (warriors.length >= 8 && armed >= warriors.length * 0.7) ||
+    (warriors.length >= 6 && armed >= warriors.length * 0.7) ||
     warriors.length >= 14 ||
     (world.tick > 9000 && warriors.length >= 5) ||
     // 後期決戰：不再等兵力完全集結
@@ -93,10 +94,12 @@ function decideTraining(world: World, f: Faction, units: Unit[], hasForge: boole
   else if (workers < 10 && workers < warriors * 0.8) role = 'worker';
   else role = 'warrior';
 
-  if (f.resources.food >= unitCost(world, f, role)) cmds.push({ type: 'train', role });
+  const reserve = upkeepOf(world, f, units.length) * 60 * TICKS_PER_SECOND;
+  if (f.resources.food >= unitCost(world, f, role) + reserve) cmds.push({ type: 'train', role });
 }
 
-function decideBuilding(world: World, f: Faction, pop: number, cmds: Command[]): void {
+function decideBuilding(world: World, f: Faction, units: Unit[], cmds: Command[]): void {
+  const pop = units.length;
   const all = factionBuildings(world, f.id);
   const sites = all.filter((b) => !b.complete).length;
   if (sites >= (f.resources.wood > 150 ? 2 : 1)) return;
@@ -105,11 +108,14 @@ function decideBuilding(world: World, f: Faction, pop: number, cmds: Command[]):
 
   const wishes: BuildingType[] = [];
   if (cap - pop <= 2 && n('house') < 8) wishes.push('house');
-  if (n('farm') < Math.min(4, 1 + Math.floor(pop / 6))) wishes.push('farm');
+  if (f.starving && n('farm') < 8) wishes.push('farm');
+  if (n('farm') < Math.min(6, 1 + Math.floor(pop / 6))) wishes.push('farm');
+  if (n('infirmary') === 0 && units.some((u) => u.sick)) wishes.push('infirmary');
   if (n('forge') === 0) wishes.push('forge');
   if (n('library') === 0) wishes.push('library');
   if (n('barracks') === 0) wishes.push('barracks');
   if (n('tower') < RACES[f.race].maxTowers) wishes.push('tower');
+  if (n('infirmary') === 0 && pop >= 18) wishes.push('infirmary');
   if (n('house') < 8 && pop >= cap - 4) wishes.push('house');
 
   const pick = wishes.find((t) => isBuildingUnlocked(f, t) && canAfford(f.resources, buildingCost(t, f.race)));

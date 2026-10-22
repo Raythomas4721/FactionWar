@@ -42,7 +42,7 @@ export function GodBar({ world, selected, onSelect, message }: Props) {
       <div className={`god-hint ${message && !message.ok ? 'fail' : ''}`}>
         {selected
           ? `${POWER_DEFS[selected].desc}。點地圖施放，右鍵或 Esc 取消`
-          : message?.text ?? '選一個神力，再點地圖施放（快捷鍵 1–6）'}
+          : message?.text ?? '選一個神力，再點地圖施放（快捷鍵 1–7）'}
       </div>
     </div>
   );

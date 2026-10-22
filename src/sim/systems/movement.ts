@@ -133,7 +133,7 @@ export function moveTo(world: World, u: Unit, cx: number, cy: number, stopDist: 
     u.repathAt = world.tick + (p ? 4 : 20);
   }
 
-  let speed = speedOf(u.attrs);
+  let speed = speedOf(u.attrs) * (u.sick ? 0.75 : 1);
   while (speed > 0) {
     const node = u.path[0];
     const tx = node ? node.x + 0.5 : cx;

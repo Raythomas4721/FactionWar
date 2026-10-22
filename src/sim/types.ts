@@ -8,7 +8,7 @@ export type ResourceKind = 'wood' | 'stone' | 'ore' | 'food';
 export type Resources = Record<ResourceKind, number>;
 export type Role = 'worker' | 'warrior' | 'smith';
 export type TileKind = 'grass' | 'water' | 'forest' | 'rock' | 'ore' | 'berries';
-export type BuildingType = 'hq' | 'house' | 'farm' | 'forge' | 'library' | 'barracks' | 'tower';
+export type BuildingType = 'hq' | 'house' | 'farm' | 'forge' | 'library' | 'barracks' | 'tower' | 'infirmary';
 export type Stance = 'defend' | 'attack';
 
 export interface Point {
@@ -64,8 +64,11 @@ export interface Unit {
   cooldown: number;
   kills: number;
   bornAt: number;
-  /** M3（疾病／飢餓）預留，目前未使用 */
+  /** 是否染病：會掉血、工作與移動變慢、傳染給附近的人 */
   sick: boolean;
+  /** 康復後在這個 tick 之前不會再染病 */
+  immuneUntil: number;
+  /** 飢餓度 0~1：陣營沒糧時上升，過高會掉士氣、掉血 */
   hunger: number;
   /** M4（策反）預留：忠誠度低於門檻會倒戈，目前未使用 */
   loyalty: number;
@@ -97,6 +100,9 @@ export interface FactionStats {
   crafted: number;
   built: number;
   trained: number;
+  infections: number;
+  diseaseDeaths: number;
+  starved: number;
   bestItem: { label: string; power: number } | null;
 }
 
@@ -124,9 +130,11 @@ export interface Faction {
   nextAiAt: number;
   /** 由玩家決定戰略（進攻／防守），AI 不再改變姿態 */
   playerControlled: boolean;
+  /** 糧食不夠付這個 tick 的口糧 */
+  starving: boolean;
 }
 
-export type EventKind = 'combat' | 'craft' | 'build' | 'tech' | 'faction' | 'god' | 'info';
+export type EventKind = 'combat' | 'craft' | 'build' | 'tech' | 'faction' | 'god' | 'health' | 'info';
 
 export interface GameEvent {
   tick: number;

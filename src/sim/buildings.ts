@@ -28,6 +28,8 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
     desc: '訓練戰士的糧食成本 -25%' },
   tower: { type: 'tower', name: '箭塔', glyph: '塔', hp: 320, cost: { stone: 50, wood: 15 }, tech: 2, work: 2,
     desc: '自動射擊附近的敵人' },
+  infirmary: { type: 'infirmary', name: '醫館', glyph: '醫', hp: 150, cost: { wood: 30, stone: 15 }, tech: 1, work: 1.2,
+    desc: '附近的病患康復速度 ×3，陣營自發染病機率 -40%' },
 };
 
 export const HQ_POP = 10;

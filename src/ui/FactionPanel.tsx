@@ -1,5 +1,6 @@
 import { BUILDING_DEFS } from '../sim/buildings';
-import { MAX_TECH, TECH_THRESHOLDS } from '../sim/constants';
+import { MAX_TECH, TECH_THRESHOLDS, TICKS_PER_SECOND } from '../sim/constants';
+import { upkeepOf } from '../sim/systems/health';
 import { RACES } from '../sim/races';
 import type { BuildingType, Faction, Resources, World } from '../sim/types';
 import { RESOURCE_NAMES, factionBuildings, factionUnits, popCapOf } from '../sim/util';
@@ -7,7 +8,7 @@ import { score } from '../sim/world';
 import { FactionCommands } from './FactionCommands';
 
 const RES_ORDER: (keyof Resources)[] = ['food', 'wood', 'stone', 'ore'];
-const SHOWN_BUILDINGS: BuildingType[] = ['house', 'farm', 'forge', 'library', 'barracks', 'tower'];
+const SHOWN_BUILDINGS: BuildingType[] = ['house', 'farm', 'forge', 'library', 'barracks', 'infirmary', 'tower'];
 
 export function FactionPanel({ world }: { world: World }) {
   return (
@@ -24,6 +25,8 @@ function FactionCard({ world, f }: { world: World; f: Faction }) {
   const units = factionUnits(world, f.id);
   const count = (r: string) => units.filter((u) => u.role === r).length;
   const buildings = factionBuildings(world, f.id).filter((b) => b.complete);
+  const sick = units.filter((u) => u.sick).length;
+  const upkeepPerMin = upkeepOf(world, f, units.length) * 60 * TICKS_PER_SECOND;
   const techProgress =
     f.tech >= MAX_TECH
       ? 1
@@ -67,12 +70,20 @@ function FactionCard({ world, f }: { world: World; f: Faction }) {
         <span className="muted">工人 {count('worker')} · 戰士 {count('warrior')} · 鐵匠 {count('smith')}</span>
       </div>
 
+      {f.alive && (sick > 0 || f.starving) && (
+        <div className="fc-row health-row">
+          {sick > 0 && <span className="sick-badge">☣ 患病 {sick}</span>}
+          {f.starving && <span className="starve-badge">🍞 飢荒中</span>}
+        </div>
+      )}
+
       <div className="fc-res">
         {RES_ORDER.map((k) => (
           <span key={k}>
             {RESOURCE_NAMES[k]} <b>{Math.floor(f.resources[k])}</b>
           </span>
         ))}
+        <span className="muted" title="全族每分鐘吃掉的糧食">口糧 {Math.round(upkeepPerMin)}/分</span>
       </div>
 
       <div className="fc-row">
@@ -95,6 +106,7 @@ function FactionCard({ world, f }: { world: World; f: Faction }) {
 
       <div className="fc-row muted">
         <span>擊殺 {f.stats.kills} · 陣亡 {f.stats.deaths} · 打造 {f.stats.crafted} · 軍械庫 {f.armory.length}</span>
+        <span>染病 {f.stats.infections} · 病死 {f.stats.diseaseDeaths} · 餓死 {f.stats.starved}</span>
       </div>
       {f.stats.bestItem && <div className="fc-best">最佳裝備：{f.stats.bestItem.label}</div>}
 

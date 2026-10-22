@@ -27,7 +27,8 @@ export function hitChance(att: Attributes, def: Attributes): number {
 /** 未減免前的傷害：近戰吃力量，遠程吃敏捷 */
 export function rawDamage(u: Unit): number {
   const w = weaponStats(u);
-  return w.dmg + (w.ranged ? u.attrs.agi * 0.25 : u.attrs.str * 0.5);
+  const base = w.dmg + (w.ranged ? u.attrs.agi * 0.25 : u.attrs.str * 0.5);
+  return u.sick ? base * 0.75 : base;
 }
 
 /** 扣掉護甲與體質減免，最少 1 點 */
@@ -41,18 +42,23 @@ export function damageUnit(world: World, target: Unit, dmg: number, byFaction: n
   target.morale = clamp(target.morale - dmg * 0.8 * moraleLossMult(target.attrs), 0, 100);
   if (target.hp > 0) return;
 
-  world.factions[target.factionId].stats.deaths++;
+  handleDeath(world, target);
   if (byFaction >= 0) world.factions[byFaction].stats.kills++;
   if (byUnit) {
     byUnit.kills++;
     byUnit.morale = clamp(byUnit.morale + 8, 0, 100);
   }
+  logEvent(world, 'combat', `${byLabel} 擊殺了 ${unitLabel(target)}`, byFaction);
+}
+
+/** 任何死因都會做的事：記錄陣亡、附近同伴士氣下降 */
+export function handleDeath(world: World, target: Unit): void {
+  world.factions[target.factionId].stats.deaths++;
   for (const ally of world.units) {
     if (ally.factionId === target.factionId && ally.hp > 0 && dist(ally.x, ally.y, target.x, target.y) < 5) {
       ally.morale = clamp(ally.morale - 8 * moraleLossMult(ally.attrs), 0, 100);
     }
   }
-  logEvent(world, 'combat', `${byLabel} 擊殺了 ${unitLabel(target)}`, byFaction);
 }
 
 export function damageBuilding(world: World, b: Building, dmg: number, byFaction: number): void {

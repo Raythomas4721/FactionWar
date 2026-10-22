@@ -54,6 +54,9 @@ export function areHostile(_world: World, a: number, b: number): boolean {
   return a !== b;
 }
 
+/** 生病時工作效率減半 */
+export const sickMult = (u: Unit): number => (u.sick ? 0.5 : 1);
+
 export function unitLabel(u: Unit): string {
   return `${RACES[u.race].name}${ROLE_NAMES[u.role]} ${u.name}`;
 }
@@ -147,6 +150,7 @@ export function spawnUnit(world: World, f: Faction, role: Role): Unit | null {
     kills: 0,
     bornAt: world.tick,
     sick: false,
+    immuneUntil: 0,
     hunger: 0,
     loyalty: 60 + attrs.cha * 2,
   };

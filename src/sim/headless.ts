@@ -9,6 +9,9 @@ export interface FactionResult {
   kills: number;
   crafted: number;
   built: number;
+  infections: number;
+  diseaseDeaths: number;
+  starved: number;
   score: number;
 }
 
@@ -37,6 +40,9 @@ export function runGame(seed: number, opts: WorldOptions = {}): GameResult {
       kills: f.stats.kills,
       crafted: f.stats.crafted,
       built: f.stats.built,
+      infections: f.stats.infections,
+      diseaseDeaths: f.stats.diseaseDeaths,
+      starved: f.stats.starved,
       score: score(world, f),
     })),
   };

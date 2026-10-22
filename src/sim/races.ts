@@ -15,6 +15,10 @@ export interface RaceDef {
   maxTowers: number;
   /** 採集漿果的速度倍率 */
   forageMult: number;
+  /** 每人口糧倍率 */
+  foodUpkeep: number;
+  /** 染病機率倍率（再乘上體質抗性） */
+  diseaseMult: number;
   /** 希望遠程戰士佔多少比例 */
   rangedShare: number;
   stoneCostMult: number;
@@ -47,12 +51,14 @@ export const RACES: Record<RaceId, RaceDef> = {
     towerDamageMult: 1,
     maxTowers: 2,
     forageMult: 1,
+    foodUpkeep: 1.2,
+    diseaseMult: 1,
     rangedShare: 0.15,
     stoneCostMult: 1,
     buildSpeed: 1,
     libraryBonus: 0.6,
     names: ['格羅姆', '薩克', '烏佐格', '卡加斯', '杜洛克', '莫格', '拉卡', '戈爾', '納茲', '布魯格'],
-    traits: ['訓練便宜、房屋容納更多人口', '力量與體質高，近戰兇猛', '智慧低，科技發展慢', '專屬：狼牙棒、戰斧加成'],
+    traits: ['訓練便宜、房屋容納更多人口、食量大', '力量與體質高，近戰兇猛', '智慧低，科技發展慢', '專屬：狼牙棒、戰斧加成'],
   },
   elf: {
     id: 'elf',
@@ -65,12 +71,14 @@ export const RACES: Record<RaceId, RaceDef> = {
     towerDamageMult: 1,
     maxTowers: 2,
     forageMult: 1.2,
+    foodUpkeep: 0.8,
+    diseaseMult: 1,
     rangedShare: 0.65,
     stoneCostMult: 1,
     buildSpeed: 1,
     libraryBonus: 1.0,
     names: ['艾拉爾', '莉拉', '希爾凡', '菲恩', '伊蓮', '塔林', '諾娜', '瑟蘭', '雅文', '璃絲'],
-    traits: ['敏捷與智慧高，科技最快', '弓箭專精、擅長採集漿果', '力量低、人口較貴', '專屬：月影長弓（科技 4）'],
+    traits: ['敏捷與智慧高，科技最快', '弓箭專精、擅長採集漿果、食量小', '力量低、體弱易病、人口較貴', '專屬：月影長弓（科技 4）'],
   },
   dwarf: {
     id: 'dwarf',
@@ -80,15 +88,17 @@ export const RACES: Record<RaceId, RaceDef> = {
     base: { str: 13, agi: 7, int: 10, con: 15, cha: 6 },
     unitCost: 30,
     popPerHouse: 5,
-    towerDamageMult: 1.5,
-    maxTowers: 4,
+    towerDamageMult: 1.25,
+    maxTowers: 3,
     forageMult: 1,
+    foodUpkeep: 1,
+    diseaseMult: 0.5,
     rangedShare: 0.2,
     stoneCostMult: 0.75,
     buildSpeed: 1.3,
     libraryBonus: 0.6,
     names: ['博林', '杜林', '葛林', '索林', '巴爾', '朵莉', '布倫', '甘德', '洛卡', '芬恩'],
-    traits: ['體質最高、生命值多', '石造建築便宜、蓋得快、箭塔更強（最多 4 座）', '戰鎚與重甲打造加成', '專屬：符文戰鎚（科技 4）'],
+    traits: ['體質最高、幾乎不會生病', '石造建築便宜、蓋得快、箭塔更強（最多 3 座）', '戰鎚與重甲打造加成', '專屬：符文戰鎚（科技 4）'],
   },
   human: {
     id: 'human',
@@ -101,12 +111,14 @@ export const RACES: Record<RaceId, RaceDef> = {
     towerDamageMult: 1,
     maxTowers: 2,
     forageMult: 1,
+    foodUpkeep: 1,
+    diseaseMult: 0.8,
     rangedShare: 0.35,
     stoneCostMult: 1,
     buildSpeed: 1,
     libraryBonus: 0.8,
     names: ['亞瑟', '艾德', '莉亞', '馬可', '湯姆', '珊莎', '羅倫', '凱爾', '貝絲', '奧文'],
-    traits: ['各項屬性均衡', '魅力高：士氣不易崩潰；書院加成較高', '劍與十字弩打造加成', '（M4 外交、策反最強）'],
+    traits: ['各項屬性均衡、比較不容易生病', '魅力高：士氣不易崩潰；書院加成較高', '劍與十字弩打造加成', '（M4 外交、策反最強）'],
   },
 };
 

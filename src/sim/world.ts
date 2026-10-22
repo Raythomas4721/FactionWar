@@ -11,7 +11,7 @@ import { maxTicksOf, mergeRules, type WorldRules } from './rules';
 import { moraleRegenOf } from './stats';
 import type { Faction, Item, RaceId, Role, Unit, World } from './types';
 import {
-  centerOf, factionBuildings, factionUnits, hqOf, logEvent, spawnUnit,
+  centerOf, enemiesNear, factionBuildings, factionUnits, hqOf, logEvent, spawnUnit,
 } from './util';
 import { runFactionAi } from './ai/faction';
 import { think } from './ai/utility';
@@ -21,6 +21,7 @@ import { buildTick, createBuilding, updateBuildings } from './systems/building';
 import { craftTick } from './systems/crafting';
 import { deliverTick, gatherTick } from './systems/economy';
 import { equipTick } from './systems/equipment';
+import { infirmaryOf, updateDisease, updateHunger } from './systems/health';
 import { moveTo } from './systems/movement';
 
 export interface WorldOptions {
@@ -78,9 +79,10 @@ export function createFaction(world: World, race: RaceId, races: RaceId[]): Fact
     gatherWeights: { food: 3, wood: 2, stone: 0.4, ore: 0.05 },
     commands: [],
     relations: races.map((other) => (other === race ? 100 : RIVALRY[race][other])),
-    stats: { kills: 0, deaths: 0, crafted: 0, built: 0, trained: 0, bestItem: null },
+    stats: { kills: 0, deaths: 0, crafted: 0, built: 0, trained: 0, infections: 0, diseaseDeaths: 0, starved: 0, bestItem: null },
     nextAiAt: 1 + world.factions.length * 5,
     playerControlled: false,
+    starving: false,
   };
   world.factions.push(f);
   return f;
@@ -113,9 +115,9 @@ export function score(world: World, f: Faction): number {
   if (!f.alive) return 0;
   return (
     factionUnits(world, f.id).length * 10 +
-    factionBuildings(world, f.id).filter((b) => b.complete).length * 15 +
+    factionBuildings(world, f.id).filter((b) => b.complete).length * 8 +
     f.tech * 30 +
-    f.stats.kills * 5
+    f.stats.kills * 3
   );
 }
 
@@ -137,6 +139,16 @@ export function step(world: World): void {
 
   updateResearch(world);
   updateBuildings(world);
+  updateHunger(world);
+  updateDisease(world);
+
+  const besieged = new Set<number>();
+  for (const f of world.factions) {
+    const hq = f.alive ? hqOf(world, f) : undefined;
+    if (!hq) continue;
+    const c = centerOf(hq);
+    if (enemiesNear(world, f.id, c.x, c.y, HQ_REST_RADIUS + 3).length) besieged.add(f.id);
+  }
 
   for (const u of world.units) {
     if (u.hp <= 0) continue;
@@ -149,7 +161,7 @@ export function step(world: World): void {
       u.action = { type: 'idle' };
       u.thinkAt = world.tick + 1;
     }
-    recover(world, u);
+    recover(world, u, besieged);
   }
 
   cleanup(world);
@@ -173,23 +185,26 @@ function act(world: World, u: Unit): boolean {
       moveTo(world, u, a.x, a.y, 0.5);
       return true;
     case 'retreat': {
+      // 病人去醫館養病，其他人回營帳
       const hq = hqOf(world, world.factions[u.factionId]);
       if (!hq) return false;
-      const c = centerOf(hq);
-      moveTo(world, u, c.x, c.y, HQ_REST_RADIUS - 1);
+      const infirmary = u.sick ? infirmaryOf(world, u.factionId) : undefined;
+      const c = centerOf(infirmary ?? hq);
+      moveTo(world, u, c.x, c.y, infirmary ? 2 : HQ_REST_RADIUS - 1);
       return true;
     }
   }
 }
 
-/** 士氣自然回復；在自家營帳旁會治療傷勢 */
-function recover(world: World, u: Unit): void {
+/** 士氣自然回復；在自家營帳旁會治療傷勢（營帳被圍攻時無法休養） */
+function recover(world: World, u: Unit, besieged: Set<number>): void {
   u.morale = clamp(u.morale + moraleRegenOf(u.attrs), 0, 100);
   const hq = hqOf(world, world.factions[u.factionId]);
-  if (hq) {
+  if (hq && !besieged.has(u.factionId)) {
     const c = centerOf(hq);
     if (dist(u.x, u.y, c.x, c.y) <= HQ_REST_RADIUS) {
-      u.hp = Math.min(u.maxHp, u.hp + 0.06 + u.attrs.con * 0.006);
+      // 病人在營帳只能休息，傷勢要等病好（或去醫館）才會恢復
+      if (!u.sick) u.hp = Math.min(u.maxHp, u.hp + 0.06 + u.attrs.con * 0.006);
       u.morale = clamp(u.morale + 0.4, 0, 100);
     }
   }

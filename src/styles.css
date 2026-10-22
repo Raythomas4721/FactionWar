@@ -570,3 +570,15 @@ canvas.casting {
   font-size: 11px;
   color: var(--muted);
 }
+
+/* 疾病與飢餓 */
+.sick-badge {
+  color: #b6ff3b;
+}
+.starve-badge {
+  color: #ffb36b;
+}
+.health-row {
+  font-size: 12px;
+  font-weight: bold;
+}

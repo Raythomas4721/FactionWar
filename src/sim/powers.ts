@@ -6,13 +6,14 @@ import {
 } from './util';
 import { damageBuilding, damageUnit } from './systems/combat';
 import { pickCraftDef } from './systems/crafting';
+import { infect, infectionRisk } from './systems/health';
 
 /**
  * 上帝之手：玩家直接介入世界的神力。
  * 施法立即生效並記錄在事件日誌；消耗神力值（世界法則可設為無限）。
  */
 
-export type PowerId = 'lightning' | 'bless' | 'gift' | 'reinforce' | 'forest' | 'ore';
+export type PowerId = 'lightning' | 'plague' | 'bless' | 'gift' | 'reinforce' | 'forest' | 'ore';
 
 export interface PowerDef {
   id: PowerId;
@@ -28,8 +29,10 @@ export interface PowerDef {
 export const POWER_DEFS: Record<PowerId, PowerDef> = {
   lightning: { id: 'lightning', name: '天雷', icon: '⚡', cost: 30, radius: 2.5, color: '#fff27a',
     desc: '對範圍內所有小人造成 30 點傷害，建築 80 點，不分敵我' },
+  plague: { id: 'plague', name: '瘟疫', icon: '☣', cost: 40, radius: 3, color: '#b6ff3b',
+    desc: '範圍內小人可能染病，體質高的（尤其矮人）能抵抗；之後會互相傳染' },
   bless: { id: 'bless', name: '祝福', icon: '✨', cost: 20, radius: 3, color: '#7affc8',
-    desc: '範圍內小人生命全滿、士氣全滿' },
+    desc: '範圍內小人生命全滿、士氣全滿、疾病痊癒、不再飢餓' },
   gift: { id: 'gift', name: '恩賜', icon: '💰', cost: 35, radius: 0, color: '#ffd75e',
     desc: '點擊處最近的陣營獲得一批木、石、礦、糧' },
   reinforce: { id: 'reinforce', name: '援軍', icon: '🛡', cost: 50, radius: 0, color: '#9ec5ff',
@@ -40,7 +43,7 @@ export const POWER_DEFS: Record<PowerId, PowerDef> = {
     desc: '把範圍內的草地變成鐵礦' },
 };
 
-export const POWER_ORDER: PowerId[] = ['lightning', 'bless', 'gift', 'reinforce', 'forest', 'ore'];
+export const POWER_ORDER: PowerId[] = ['lightning', 'plague', 'bless', 'gift', 'reinforce', 'forest', 'ore'];
 
 const GIFT: Resources = { wood: 80, stone: 60, ore: 50, food: 80 };
 
@@ -100,9 +103,22 @@ function apply(world: World, def: PowerDef, x: number, y: number): CastResult {
       for (const u of blessed) {
         u.hp = u.maxHp;
         u.morale = 100;
+        u.hunger = 0;
+        if (u.sick) {
+          u.sick = false;
+          u.immuneUntil = world.tick + 2000;
+        }
       }
       const names = blessed.slice(0, 3).map(unitLabel).join('、');
       return { ok: true, message: `神聖祝福降臨在 ${names}${blessed.length > 3 ? ` 等 ${blessed.length} 人` : ''} 身上` };
+    }
+    case 'plague': {
+      const targets = world.units.filter((u) => u.hp > 0 && !u.sick && dist(u.x, u.y, x, y) <= def.radius);
+      if (!targets.length) return { ok: false, message: '範圍內沒有健康的小人' };
+      // 神降的瘟疫比自然傳染猛烈，但體質與種族抗性仍然有效
+      const infected = targets.filter((u) => world.rng.chance(Math.min(1, 0.9 * infectionRisk(world, u) / Math.max(world.rules.diseaseMult, 0.01))) && infect(world, u));
+      const resisted = targets.length - infected.length;
+      return { ok: true, message: `瘟疫降臨！${infected.length} 人染病${resisted ? `，${resisted} 人靠體質抵抗住了` : ''}` };
     }
     case 'gift': {
       const f = nearestFaction(world, x, y);

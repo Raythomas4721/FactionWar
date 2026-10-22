@@ -7,7 +7,7 @@ import { RACES } from '../races';
 import { buildRateOf } from '../stats';
 import type { Building, BuildingType, Faction, Point, Unit, World } from '../types';
 import {
-  areHostile, canAfford, centerOf, getBuilding, hqOf, logEvent, pay, tileAt,
+  areHostile, canAfford, centerOf, getBuilding, hqOf, logEvent, pay, sickMult, tileAt,
 } from '../util';
 import { damageUnit } from './combat';
 import { moveTo } from './movement';
@@ -83,7 +83,7 @@ export function buildTick(world: World, u: Unit, buildingId: number): boolean {
   const c = centerOf(b);
   if (!moveTo(world, u, c.x, c.y, 1.6)) return true;
   const def = BUILDING_DEFS[b.type];
-  b.progress = Math.min(1, b.progress + (buildRateOf(u.attrs) * RACES[u.race].buildSpeed) / def.work);
+  b.progress = Math.min(1, b.progress + (buildRateOf(u.attrs) * RACES[u.race].buildSpeed * sickMult(u)) / def.work);
   b.hp = Math.max(b.hp, def.hp * (0.1 + 0.9 * b.progress));
   if (b.progress >= 1) {
     b.complete = true;

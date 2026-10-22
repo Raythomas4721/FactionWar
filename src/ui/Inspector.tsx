@@ -9,12 +9,13 @@ import { TICKS_PER_SECOND } from '../sim/constants';
 import type { Building, Unit, World } from '../sim/types';
 import { RESOURCE_NAMES, ROLE_NAMES, getBuilding, hasCompleted } from '../sim/util';
 import { formatTime } from './ControlBar';
+import { infectionRisk } from '../sim/systems/health';
 
 const ATTR_HINTS: Record<string, string> = {
   str: '近戰傷害、採集量、建造速度',
   agi: '命中、攻速、移動、遠程傷害',
   int: '打造品質、研究速度',
-  con: '生命值、減傷（M3：抗病）',
+  con: '生命值、減傷、抗病、康復速度',
   cha: '士氣穩定（M4：遊說／策反）',
 };
 
@@ -60,7 +61,7 @@ function describeAction(world: World, u: Unit): string {
     }
     case 'equip': return '回營帳換裝備';
     case 'guard': return '站崗';
-    case 'retreat': return '撤退休養';
+    case 'retreat': return u.sick ? '養病' : '撤退休養';
   }
 }
 
@@ -85,6 +86,11 @@ function UnitView({ world, u }: { world: World; u: Unit }) {
         <span className="muted">出生 {formatTime(u.bornAt)}</span>
       </div>
       <div className="iv-doing">正在：{describeAction(world, u)}</div>
+      <div className="iv-status">
+        <span className={u.sick ? 'sick-badge' : ''}>{u.sick ? '☣ 患病中（工作減半）' : world.tick < u.immuneUntil ? '🛡 剛康復，暫時免疫' : '健康'}</span>
+        <span>染病風險 ×{infectionRisk(world, u).toFixed(2)}</span>
+        <span className={u.hunger > 0.4 ? 'starve-badge' : 'muted'}>飢餓 {Math.round(u.hunger * 100)}%</span>
+      </div>
 
       <div className="attrs">
         {ATTR_KEYS.map((k) => {

@@ -2,7 +2,7 @@ import { dist } from '../math';
 import { RACES } from '../races';
 import { carryOf, gatherRateOf } from '../stats';
 import type { Point, ResourceKind, TileKind, Unit, World } from '../types';
-import { areHostile, centerOf, hqOf } from '../util';
+import { areHostile, centerOf, hqOf, sickMult } from '../util';
 import { moveTo } from './movement';
 
 export const RESOURCE_TILE: Record<ResourceKind, TileKind> = {
@@ -44,7 +44,7 @@ export function gatherTick(world: World, u: Unit, kind: ResourceKind, tx: number
   const cap = carryOf(u.attrs);
   if (!u.carrying || u.carrying.kind !== kind) u.carrying = { kind, amount: 0 };
   const rate =
-    gatherRateOf(u.attrs, kind === 'food') * (kind === 'food' ? RACES[u.race].forageMult : 1) * world.rules.gatherMult;
+    gatherRateOf(u.attrs, kind === 'food') * (kind === 'food' ? RACES[u.race].forageMult : 1) * world.rules.gatherMult * sickMult(u);
   const amt = Math.min(rate, tile.amount, cap - u.carrying.amount);
   u.carrying.amount += amt;
   tile.amount -= amt;

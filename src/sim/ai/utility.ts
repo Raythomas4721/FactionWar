@@ -38,6 +38,8 @@ export function think(world: World, u: Unit): void {
     let s = (1 - hpRatio) * 90 + (u.morale < 25 ? 70 : 0);
     // 進攻中的部隊比較拚命，只有士氣崩潰才會撤退
     if (f.stance === 'attack') s *= 0.6;
+    else if (u.sick) s += 30;
+    if (resting && u.sick && f.stance !== 'attack') s = Math.max(s, 80);
     if (resting && (hpRatio < 0.85 || u.morale < 55)) s = Math.max(s, 92);
     add(s, { type: 'retreat' });
     warriorOptions(world, u, f, add, enemy, enemyDist);
@@ -51,6 +53,7 @@ export function think(world: World, u: Unit): void {
     if (resting && enemy && enemyDist < 8) add(85, { type: 'retreat' });
     if (hpRatio < 0.5) add(70 + (1 - hpRatio) * 30, { type: 'retreat' });
     if (resting && hpRatio < 0.9) add(80, { type: 'retreat' });
+    if (u.sick) add(78, { type: 'retreat' });
     civilianOptions(world, u, f, add);
   }
 

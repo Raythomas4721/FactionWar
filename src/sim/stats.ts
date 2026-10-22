@@ -25,3 +25,9 @@ export const craftRateOf = (a: Attributes): number => 0.004 + a.int * 0.0004;
 export const moraleLossMult = (a: Attributes): number => clamp(1.2 - a.cha * 0.045, 0.4, 1.2);
 
 export const moraleRegenOf = (a: Attributes): number => 0.01 + a.cha * 0.002;
+
+/** 染病機率倍率：體質越高越不容易生病 */
+export const diseaseResistOf = (a: Attributes): number => clamp(1.6 - a.con * 0.08, 0.15, 1.2);
+
+/** 每 tick 康復的機率：體質越高好得越快 */
+export const recoveryRateOf = (a: Attributes): number => 0.0015 * (1 + a.con / 10);

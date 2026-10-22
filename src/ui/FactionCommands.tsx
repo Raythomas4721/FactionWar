@@ -5,7 +5,7 @@ import type { BuildingType, Faction, Resources, Role, World } from '../sim/types
 import { RESOURCE_NAMES, ROLE_NAMES, canAfford, popCapOf, popOf } from '../sim/util';
 
 const ROLES: Role[] = ['worker', 'warrior', 'smith'];
-const BUILDABLE: BuildingType[] = ['house', 'farm', 'forge', 'library', 'barracks', 'tower'];
+const BUILDABLE: BuildingType[] = ['house', 'farm', 'forge', 'library', 'barracks', 'infirmary', 'tower'];
 
 const costText = (cost: Partial<Resources>) =>
   (Object.keys(cost) as (keyof Resources)[]).map((k) => `${RESOURCE_NAMES[k]} ${cost[k]}`).join('、');

@@ -21,7 +21,7 @@ const pct = (n: number) => `${((n / games) * 100).toFixed(1)}%`.padStart(6);
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 
 console.log(`\n共 ${games} 場（種子 ${startSeed}~${startSeed + games - 1}），耗時 ${elapsed.toFixed(1)} 秒\n`);
-console.log('種族    勝率    存活率  平均科技  平均擊殺  平均打造  平均建造');
+console.log('種族    勝率    存活率  平均科技  平均擊殺  平均打造  平均建造  平均染病  平均病死  平均餓死');
 for (const race of RACE_ORDER) {
   const wins = results.filter((r) => r.winner === race).length;
   const fr = results.map((r) => r.factions.find((f) => f.race === race)!);
@@ -34,6 +34,9 @@ for (const race of RACE_ORDER) {
       avg(fr.map((f) => f.kills)).toFixed(1).padStart(8),
       avg(fr.map((f) => f.crafted)).toFixed(1).padStart(8),
       avg(fr.map((f) => f.built)).toFixed(1).padStart(8),
+      avg(fr.map((f) => f.infections)).toFixed(1).padStart(8),
+      avg(fr.map((f) => f.diseaseDeaths)).toFixed(1).padStart(8),
+      avg(fr.map((f) => f.starved)).toFixed(1).padStart(8),
     ].join('  '),
   );
 }
