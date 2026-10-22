@@ -7,7 +7,7 @@ import type {
   Attributes, Building, BuildingType, EventKind, Faction, Point, Resources, Role, Tile, Unit, World,
 } from './types';
 
-export const ROLE_NAMES: Record<Role, string> = { worker: '工人', warrior: '戰士', smith: '鐵匠' };
+export const ROLE_NAMES: Record<Role, string> = { worker: '工人', warrior: '戰士', smith: '鐵匠', diplomat: '外交官' };
 
 export const RESOURCE_NAMES: Record<keyof Resources, string> = {
   wood: '木材', stone: '石材', ore: '鐵礦', food: '糧食',
@@ -49,9 +49,14 @@ export function distToBuilding(x: number, y: number, b: Building): number {
   return Math.hypot(dx, dy);
 }
 
-/** 目前所有陣營彼此敵對；M4 加入結盟後在這裡判斷盟友 */
-export function areHostile(_world: World, a: number, b: number): boolean {
-  return a !== b;
+/** 只有處於交戰狀態的陣營會互相攻擊；和平與同盟不會 */
+export function areHostile(world: World, a: number, b: number): boolean {
+  return a !== b && (world.treaties[a]?.[b] ?? 'war') === 'war';
+}
+
+/** 出使中的外交官享有外交豁免，不會被攻擊 */
+export function isTargetable(u: Unit): boolean {
+  return u.hp > 0 && u.action.type !== 'envoy';
 }
 
 /** 生病時工作效率減半 */
@@ -63,7 +68,7 @@ export function unitLabel(u: Unit): string {
 
 export function enemiesNear(world: World, factionId: number, x: number, y: number, radius: number): Unit[] {
   return world.units.filter(
-    (e) => e.hp > 0 && areHostile(world, factionId, e.factionId) && dist(x, y, e.x, e.y) <= radius,
+    (e) => isTargetable(e) && areHostile(world, factionId, e.factionId) && dist(x, y, e.x, e.y) <= radius,
   );
 }
 
@@ -71,7 +76,7 @@ export function nearestEnemyUnit(world: World, u: Unit, radius: number): Unit | 
   let best: Unit | undefined;
   let bestD = radius;
   for (const e of world.units) {
-    if (e.hp <= 0 || !areHostile(world, u.factionId, e.factionId)) continue;
+    if (!isTargetable(e) || !areHostile(world, u.factionId, e.factionId)) continue;
     const d = dist(u.x, u.y, e.x, e.y);
     if (d <= bestD) {
       bestD = d;
@@ -152,7 +157,7 @@ export function spawnUnit(world: World, f: Faction, role: Role): Unit | null {
     sick: false,
     immuneUntil: 0,
     hunger: 0,
-    loyalty: 60 + attrs.cha * 2,
+    loyalty: 50 + attrs.cha * 2,
   };
   world.units.push(u);
   world.unitMap.set(u.id, u);

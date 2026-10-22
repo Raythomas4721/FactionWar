@@ -10,13 +10,14 @@ import type { Building, Unit, World } from '../sim/types';
 import { RESOURCE_NAMES, ROLE_NAMES, getBuilding, hasCompleted } from '../sim/util';
 import { formatTime } from './ControlBar';
 import { infectionRisk } from '../sim/systems/health';
+import { persuadeChance } from '../sim/systems/diplomacy';
 
 const ATTR_HINTS: Record<string, string> = {
   str: '近戰傷害、採集量、建造速度',
   agi: '命中、攻速、移動、遠程傷害',
   int: '打造品質、研究速度',
   con: '生命值、減傷、抗病、康復速度',
-  cha: '士氣穩定（M4：遊說／策反）',
+  cha: '士氣穩定、忠誠、遊說與策反',
 };
 
 export function Inspector({ world, selection }: { world: World; selection: Selection | null }) {
@@ -62,6 +63,14 @@ function describeAction(world: World, u: Unit): string {
     case 'equip': return '回營帳換裝備';
     case 'guard': return '站崗';
     case 'retreat': return u.sick ? '養病' : '撤退休養';
+    case 'envoy': {
+      const to = world.factions[a.target].name;
+      return a.returning ? `出使 ${to} 歸來` : `出使 ${to}，提議${a.proposal === 'peace' ? '停戰' : '結盟'}（外交豁免）`;
+    }
+    case 'subvert': {
+      const t = world.unitMap.get(a.targetId);
+      return t ? `潛入策反 ${RACES[t.race].name} ${t.name}（成功率 ${Math.round(persuadeChance(world, u, t) * 100)}%）` : '策反';
+    }
   }
 }
 
@@ -90,6 +99,9 @@ function UnitView({ world, u }: { world: World; u: Unit }) {
         <span className={u.sick ? 'sick-badge' : ''}>{u.sick ? '☣ 患病中（工作減半）' : world.tick < u.immuneUntil ? '🛡 剛康復，暫時免疫' : '健康'}</span>
         <span>染病風險 ×{infectionRisk(world, u).toFixed(2)}</span>
         <span className={u.hunger > 0.4 ? 'starve-badge' : 'muted'}>飢餓 {Math.round(u.hunger * 100)}%</span>
+        <span className={u.loyalty < 50 ? 'starve-badge' : ''} title="越低越容易被敵方外交官策反">
+          忠誠 {Math.round(u.loyalty)}
+        </span>
       </div>
 
       <div className="attrs">

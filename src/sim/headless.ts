@@ -12,6 +12,8 @@ export interface FactionResult {
   infections: number;
   diseaseDeaths: number;
   starved: number;
+  recruited: number;
+  treaties: number;
   score: number;
 }
 
@@ -20,6 +22,7 @@ export interface GameResult {
   ticks: number;
   winner: RaceId | null;
   endReason: string;
+  allianceWin: boolean;
   factions: FactionResult[];
 }
 
@@ -32,6 +35,7 @@ export function runGame(seed: number, opts: WorldOptions = {}): GameResult {
     ticks: world.tick,
     winner: world.winner === null ? null : world.factions[world.winner].race,
     endReason: world.endReason,
+    allianceWin: world.endReason.includes('結盟共治'),
     factions: world.factions.map((f) => ({
       race: f.race,
       alive: f.alive,
@@ -43,6 +47,8 @@ export function runGame(seed: number, opts: WorldOptions = {}): GameResult {
       infections: f.stats.infections,
       diseaseDeaths: f.stats.diseaseDeaths,
       starved: f.stats.starved,
+      recruited: f.stats.recruited,
+      treaties: f.stats.treaties,
       score: score(world, f),
     })),
   };

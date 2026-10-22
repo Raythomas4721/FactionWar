@@ -4,7 +4,8 @@ import { FIST_DMG, ITEM_DEFS } from '../items';
 import { clamp, dist } from '../math';
 import { cooldownOf, moraleLossMult } from '../stats';
 import type { Attributes, Building, Faction, Unit, World } from '../types';
-import { areHostile, centerOf, distToBuilding, getBuilding, logEvent, unitLabel } from '../util';
+import { areHostile, centerOf, distToBuilding, getBuilding, isTargetable, logEvent, unitLabel } from '../util';
+import { adjustRelation } from './treaties';
 import { moveTo } from './movement';
 
 const BUILDING_ARMOR = 2;
@@ -43,7 +44,11 @@ export function damageUnit(world: World, target: Unit, dmg: number, byFaction: n
   if (target.hp > 0) return;
 
   handleDeath(world, target);
-  if (byFaction >= 0) world.factions[byFaction].stats.kills++;
+  if (byFaction >= 0) {
+    world.factions[byFaction].stats.kills++;
+    // 血債：被殺的一方對兇手的觀感變差
+    adjustRelation(world, target.factionId, byFaction, -1.5);
+  }
   if (byUnit) {
     byUnit.kills++;
     byUnit.morale = clamp(byUnit.morale + 8, 0, 100);
@@ -110,7 +115,7 @@ export function strikeBuilding(world: World, u: Unit, b: Building): void {
 /** 追擊並攻擊一個單位。目標消失或跑太遠回傳 false。 */
 export function attackUnitTick(world: World, u: Unit, targetId: number): boolean {
   const t = world.unitMap.get(targetId);
-  if (!t || t.hp <= 0 || !areHostile(world, u.factionId, t.factionId)) return false;
+  if (!t || !isTargetable(t) || !areHostile(world, u.factionId, t.factionId)) return false;
   const d = dist(u.x, u.y, t.x, t.y);
   if (d > SIGHT * 2) return false;
   const w = weaponStats(u);

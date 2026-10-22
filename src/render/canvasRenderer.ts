@@ -172,6 +172,25 @@ export class CanvasRenderer {
         }
         ctx.stroke();
       }
+    } else if (u.role === 'diplomat') {
+      ctx.beginPath();
+      ctx.moveTo(x, y - 4.5);
+      ctx.lineTo(x - 4, y + 3.5);
+      ctx.lineTo(x + 4, y + 3.5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      if (u.action.type === 'envoy') {
+        // 白旗：外交豁免中
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x + 3, y + 2);
+        ctx.lineTo(x + 3, y - 8);
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(x + 3, y - 8, 5, 3.5);
+      }
     } else if (u.role === 'smith') {
       ctx.fillRect(x - 3.5, y - 3.5, 7, 7);
       ctx.strokeRect(x - 3.5, y - 3.5, 7, 7);

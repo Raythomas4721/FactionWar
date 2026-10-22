@@ -89,7 +89,7 @@ export function App() {
     if (import.meta.env.DEV) (window as unknown as { __world: () => World }).__world = () => worldRef.current;
   }, []);
 
-  // 快捷鍵：1–7 選神力、Esc 取消、空白鍵暫停
+  // 快捷鍵：1–9 選神力、Esc 取消、空白鍵暫停
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLButtonElement) return;
@@ -225,6 +225,7 @@ function Legend() {
       <span><i className="lg-circle big" />戰士</span>
       <span><i className="lg-circle" />工人</span>
       <span><i className="lg-square" />鐵匠</span>
+      <span><i className="lg-triangle" />外交官</span>
       <span><i className="lg-tile" style={{ background: '#3f7a3a' }} />森林</span>
       <span><i className="lg-tile" style={{ background: '#8a8f96' }} />石頭</span>
       <span><i className="lg-tile" style={{ background: '#e0904a' }} />鐵礦</span>

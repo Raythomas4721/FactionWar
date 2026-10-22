@@ -1,6 +1,7 @@
 import { BUILDING_DEFS } from '../sim/buildings';
 import { MAX_TECH, TECH_THRESHOLDS, TICKS_PER_SECOND } from '../sim/constants';
 import { upkeepOf } from '../sim/systems/health';
+import { TREATY_ICONS, TREATY_NAMES, getTreaty } from '../sim/systems/treaties';
 import { RACES } from '../sim/races';
 import type { BuildingType, Faction, Resources, World } from '../sim/types';
 import { RESOURCE_NAMES, factionBuildings, factionUnits, popCapOf } from '../sim/util';
@@ -67,8 +68,31 @@ function FactionCard({ world, f }: { world: World; f: Faction }) {
 
       <div className="fc-row">
         <span>人口 {units.length}/{popCapOf(world, f.id)}</span>
-        <span className="muted">工人 {count('worker')} · 戰士 {count('warrior')} · 鐵匠 {count('smith')}</span>
+        <span className="muted">
+          工人 {count('worker')} · 戰士 {count('warrior')} · 鐵匠 {count('smith')} · 外交官 {count('diplomat')}
+        </span>
       </div>
+
+      {f.alive && (
+        <div className="relations">
+          {world.factions
+            .filter((o) => o.id !== f.id && o.alive)
+            .map((o) => {
+              const t = getTreaty(world, f.id, o.id);
+              const truce = world.truceUntil[f.id]?.[o.id] ?? 0;
+              return (
+                <span
+                  key={o.id}
+                  className={`rel rel-${t}`}
+                  title={`${TREATY_NAMES[t]}${truce ? '（神諭停戰）' : ''}｜對 ${o.name} 的觀感 ${Math.round(f.relations[o.id])}`}
+                >
+                  <i className="dot" style={{ background: o.color }} />
+                  {TREATY_ICONS[t]} {Math.round(f.relations[o.id])}
+                </span>
+              );
+            })}
+        </div>
+      )}
 
       {f.alive && (sick > 0 || f.starving) && (
         <div className="fc-row health-row">
@@ -107,6 +131,7 @@ function FactionCard({ world, f }: { world: World; f: Faction }) {
       <div className="fc-row muted">
         <span>擊殺 {f.stats.kills} · 陣亡 {f.stats.deaths} · 打造 {f.stats.crafted} · 軍械庫 {f.armory.length}</span>
         <span>染病 {f.stats.infections} · 病死 {f.stats.diseaseDeaths} · 餓死 {f.stats.starved}</span>
+        <span>招降 {f.stats.recruited} · 叛逃 {f.stats.defected} · 締約 {f.stats.treaties}</span>
       </div>
       {f.stats.bestItem && <div className="fc-best">最佳裝備：{f.stats.bestItem.label}</div>}
 

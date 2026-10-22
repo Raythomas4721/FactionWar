@@ -4,11 +4,12 @@ import { dist } from '../math';
 import { carryOf } from '../stats';
 import type { Faction, ResourceKind, Unit, UnitAction, World } from '../types';
 import {
-  canAfford, centerOf, enemiesNear, factionBuildings, hasCompleted, hqOf, nearestEnemyUnit,
+  areHostile, canAfford, centerOf, enemiesNear, factionBuildings, hasCompleted, hqOf, nearestEnemyUnit,
 } from '../util';
 import { cancelCraft, isItemUnlocked, startCraft } from '../systems/crafting';
 import { RESOURCE_TILE, findNearestResource } from '../systems/economy';
 import { bestArmoryUpgrade } from '../systems/equipment';
+import { pickSubvertTarget } from '../systems/diplomacy';
 
 /**
  * 個體 Utility AI：列出所有可做的事、各自打分，挑最高分的去做。
@@ -44,16 +45,21 @@ export function think(world: World, u: Unit): void {
     add(s, { type: 'retreat' });
     warriorOptions(world, u, f, add, enemy, enemyDist);
   } else {
+    // 出使中的外交官不會被打斷
+    if (u.action.type === 'envoy') add(99, u.action);
+    // 外交官要接近敵人才能策反，只要還健康就不會見到敵人就跑
+    const daring = u.role === 'diplomat' && hpRatio > 0.5;
     // 民兵：敵人打到家門口時，健康的工人與鐵匠也會上前迎戰
     const hc = centerOf(hq);
     if (enemy && hpRatio > 0.5 && dist(enemy.x, enemy.y, hc.x, hc.y) <= MILITIA_RADIUS) {
       add(91, { type: 'attackUnit', targetId: enemy.id });
     }
-    if (enemy && enemyDist < 5) add(88, { type: 'retreat' });
+    if (enemy && enemyDist < 5 && !daring) add(88, { type: 'retreat' });
     if (resting && enemy && enemyDist < 8) add(85, { type: 'retreat' });
     if (hpRatio < 0.5) add(70 + (1 - hpRatio) * 30, { type: 'retreat' });
     if (resting && hpRatio < 0.9) add(80, { type: 'retreat' });
     if (u.sick) add(78, { type: 'retreat' });
+    if (u.role === 'diplomat') diplomatOptions(world, u, add);
     civilianOptions(world, u, f, add);
   }
 
@@ -74,6 +80,7 @@ function sameAction(a: UnitAction, b: UnitAction): boolean {
     case 'build': return b.type === 'build' && a.buildingId === b.buildingId;
     case 'attackUnit': return b.type === 'attackUnit' && a.targetId === b.targetId;
     case 'attackBuilding': return b.type === 'attackBuilding' && a.targetId === b.targetId;
+    case 'subvert': return b.type === 'subvert' && a.targetId === b.targetId;
     case 'guard': return true;
     case 'craft': return true;
     default: return true;
@@ -135,6 +142,19 @@ function warriorOptions(
       y: hc.y + toCy * 4 + world.rng.range(-2, 2),
     });
   }
+}
+
+/** 外交官沒有出使任務時，會去策反忠誠度低的敵人 */
+function diplomatOptions(world: World, u: Unit, add: (s: number, a: Option['action']) => void): void {
+  if (u.action.type === 'subvert') {
+    const t = world.unitMap.get(u.action.targetId);
+    if (t && t.hp > 0 && areHostile(world, u.factionId, t.factionId)) {
+      add(62, u.action);
+      return;
+    }
+  }
+  const target = pickSubvertTarget(world, u);
+  if (target) add(58, { type: 'subvert', targetId: target.id });
 }
 
 function civilianOptions(world: World, u: Unit, f: Faction, add: (s: number, a: Option['action']) => void): void {

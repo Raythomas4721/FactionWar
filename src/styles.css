@@ -582,3 +582,51 @@ canvas.casting {
   font-size: 12px;
   font-weight: bold;
 }
+
+/* 外交 */
+.relations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.rel {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+.rel .dot {
+  width: 8px;
+  height: 8px;
+}
+.rel-war {
+  background: #3a1f1f;
+}
+.rel-peace {
+  background: #1f3340;
+}
+.rel-alliance {
+  background: #1f3a26;
+  border-color: #4f9a5e;
+}
+.dip-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border-left: 2px solid;
+  padding-left: 4px;
+  margin-right: 4px;
+  font-size: 12px;
+}
+.lg-triangle {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 9px solid #aaa;
+}

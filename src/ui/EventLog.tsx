@@ -10,6 +10,7 @@ const ICONS: Record<EventKind, string> = {
   faction: '🚩',
   god: '✨',
   health: '☣',
+  diplomacy: '🕊',
   info: 'ℹ',
 };
 
@@ -18,6 +19,7 @@ const FILTERS: { label: string; kinds: EventKind[] | null }[] = [
   { label: '戰鬥', kinds: ['combat', 'faction'] },
   { label: '神蹟', kinds: ['god'] },
   { label: '民生', kinds: ['health'] },
+  { label: '外交', kinds: ['diplomacy'] },
   { label: '打造', kinds: ['craft'] },
   { label: '建設', kinds: ['build', 'tech'] },
 ];

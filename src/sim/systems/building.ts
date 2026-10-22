@@ -7,7 +7,7 @@ import { RACES } from '../races';
 import { buildRateOf } from '../stats';
 import type { Building, BuildingType, Faction, Point, Unit, World } from '../types';
 import {
-  areHostile, canAfford, centerOf, getBuilding, hqOf, logEvent, pay, sickMult, tileAt,
+  areHostile, canAfford, centerOf, getBuilding, hqOf, isTargetable, logEvent, pay, sickMult, tileAt,
 } from '../util';
 import { damageUnit } from './combat';
 import { moveTo } from './movement';
@@ -113,7 +113,7 @@ export function updateBuildings(world: World): void {
     let target: Unit | undefined;
     let bestD = turret.range;
     for (const e of world.units) {
-      if (e.hp <= 0 || !areHostile(world, b.factionId, e.factionId)) continue;
+      if (!isTargetable(e) || !areHostile(world, b.factionId, e.factionId)) continue;
       const d = dist(c.x, c.y, e.x, e.y);
       if (d <= bestD) {
         bestD = d;

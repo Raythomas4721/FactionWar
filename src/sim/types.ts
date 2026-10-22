@@ -6,10 +6,13 @@ export type AttrKey = 'str' | 'agi' | 'int' | 'con' | 'cha';
 export type Attributes = Record<AttrKey, number>;
 export type ResourceKind = 'wood' | 'stone' | 'ore' | 'food';
 export type Resources = Record<ResourceKind, number>;
-export type Role = 'worker' | 'warrior' | 'smith';
+export type Role = 'worker' | 'warrior' | 'smith' | 'diplomat';
 export type TileKind = 'grass' | 'water' | 'forest' | 'rock' | 'ore' | 'berries';
 export type BuildingType = 'hq' | 'house' | 'farm' | 'forge' | 'library' | 'barracks' | 'tower' | 'infirmary';
 export type Stance = 'defend' | 'attack';
+/** 兩個陣營之間的外交狀態 */
+export type Treaty = 'war' | 'peace' | 'alliance';
+export type Proposal = 'peace' | 'alliance';
 
 export interface Point {
   x: number;
@@ -38,7 +41,11 @@ export type UnitAction =
   | { type: 'attackBuilding'; targetId: number }
   | { type: 'equip' }
   | { type: 'guard'; x: number; y: number }
-  | { type: 'retreat' };
+  | { type: 'retreat' }
+  /** 出使：前往對方營帳提議停戰或結盟（途中享有外交豁免） */
+  | { type: 'envoy'; target: number; proposal: Proposal; returning: boolean }
+  /** 策反：接近敵方小人，說服他倒戈 */
+  | { type: 'subvert'; targetId: number };
 
 export interface Unit {
   id: number;
@@ -70,7 +77,7 @@ export interface Unit {
   immuneUntil: number;
   /** 飢餓度 0~1：陣營沒糧時上升，過高會掉士氣、掉血 */
   hunger: number;
-  /** M4（策反）預留：忠誠度低於門檻會倒戈，目前未使用 */
+  /** 忠誠度 0~100：挨餓、生病、士氣低落會下降，越低越容易被策反 */
   loyalty: number;
 }
 
@@ -92,7 +99,9 @@ export type Command =
   | { type: 'train'; role: Role }
   | { type: 'build'; building: BuildingType }
   | { type: 'craft'; defId: string }
-  | { type: 'setStance'; stance: Stance; target: number | null };
+  | { type: 'setStance'; stance: Stance; target: number | null }
+  | { type: 'propose'; target: number; proposal: Proposal }
+  | { type: 'declareWar'; target: number };
 
 export interface FactionStats {
   kills: number;
@@ -103,6 +112,11 @@ export interface FactionStats {
   infections: number;
   diseaseDeaths: number;
   starved: number;
+  /** 策反成功招降的人數 */
+  recruited: number;
+  /** 被敵人策反走的人數 */
+  defected: number;
+  treaties: number;
   bestItem: { label: string; power: number } | null;
 }
 
@@ -124,8 +138,9 @@ export interface Faction {
   gatherWeights: Resources;
   /** AI 與（未來的）玩家都透過這個佇列下指令 */
   commands: Command[];
-  /** M4 外交預留：與各陣營的關係值 -100~100 */
+  /** 與各陣營的關係值 -100~100 */
   relations: number[];
+  nextDiplomacyAt: number;
   stats: FactionStats;
   nextAiAt: number;
   /** 由玩家決定戰略（進攻／防守），AI 不再改變姿態 */
@@ -134,7 +149,7 @@ export interface Faction {
   starving: boolean;
 }
 
-export type EventKind = 'combat' | 'craft' | 'build' | 'tech' | 'faction' | 'god' | 'health' | 'info';
+export type EventKind = 'combat' | 'craft' | 'build' | 'tech' | 'faction' | 'god' | 'health' | 'diplomacy' | 'info';
 
 export interface GameEvent {
   tick: number;
@@ -176,6 +191,12 @@ export interface World {
   winner: number | null;
   endReason: string;
   rules: WorldRules;
+  /** 外交狀態矩陣 treaties[a][b]（對稱） */
+  treaties: Treaty[][];
+  /** 神諭停戰的到期 tick（0 = 不會到期） */
+  truceUntil: number[][];
+  /** 所有存活陣營全部結盟的起始 tick；維持夠久就是結盟共治勝利 */
+  allianceSince: number | null;
   /** 神力值，施展上帝之手會消耗 */
   mana: number;
 }

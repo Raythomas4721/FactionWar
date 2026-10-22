@@ -1,10 +1,11 @@
 import { BUILDING_DEFS, buildingCost } from '../sim/buildings';
 import { issueCommand, unitCost } from '../sim/commands';
 import { isBuildingUnlocked } from '../sim/systems/building';
+import { TREATY_ICONS, getTreaty } from '../sim/systems/treaties';
 import type { BuildingType, Faction, Resources, Role, World } from '../sim/types';
 import { RESOURCE_NAMES, ROLE_NAMES, canAfford, popCapOf, popOf } from '../sim/util';
 
-const ROLES: Role[] = ['worker', 'warrior', 'smith'];
+const ROLES: Role[] = ['worker', 'warrior', 'smith', 'diplomat'];
 const BUILDABLE: BuildingType[] = ['house', 'farm', 'forge', 'library', 'barracks', 'infirmary', 'tower'];
 
 const costText = (cost: Partial<Resources>) =>
@@ -12,7 +13,7 @@ const costText = (cost: Partial<Resources>) =>
 
 /** 玩家接管陣營後的指揮面板：透過和 AI 相同的指令佇列下令 */
 export function FactionCommands({ world, f }: { world: World; f: Faction }) {
-  const enemies = world.factions.filter((e) => e.id !== f.id && e.alive);
+  const others = world.factions.filter((e) => e.id !== f.id && e.alive);
   const popFull = popOf(world, f.id) >= popCapOf(world, f.id);
 
   return (
@@ -25,7 +26,7 @@ export function FactionCommands({ world, f }: { world: World; f: Faction }) {
         >
           🛡 防守
         </button>
-        {enemies.map((e) => (
+        {others.map((e) => (
           <button
             key={e.id}
             className={f.stance === 'attack' && f.targetFaction === e.id ? 'active attack' : ''}
@@ -35,6 +36,26 @@ export function FactionCommands({ world, f }: { world: World; f: Faction }) {
             ⚔ {e.name.slice(0, 2)}
           </button>
         ))}
+      </div>
+      <div className="cmd-row">
+        <span className="cmd-label">外交</span>
+        {others.map((o) => {
+          const t = getTreaty(world, f.id, o.id);
+          return (
+            <span key={o.id} className="dip-group" style={{ borderColor: o.color }}>
+              <span style={{ color: o.color }}>{TREATY_ICONS[t]} {o.name.slice(0, 2)}</span>
+              {t === 'war' && (
+                <button onClick={() => issueCommand(world, f.id, { type: 'propose', target: o.id, proposal: 'peace' })}>求和</button>
+              )}
+              {t === 'peace' && (
+                <button onClick={() => issueCommand(world, f.id, { type: 'propose', target: o.id, proposal: 'alliance' })}>結盟</button>
+              )}
+              {t !== 'war' && (
+                <button onClick={() => issueCommand(world, f.id, { type: 'declareWar', target: o.id })}>宣戰</button>
+              )}
+            </span>
+          );
+        })}
       </div>
       <div className="cmd-row">
         <span className="cmd-label">訓練</span>

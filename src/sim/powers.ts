@@ -7,13 +7,17 @@ import {
 import { damageBuilding, damageUnit } from './systems/combat';
 import { pickCraftDef } from './systems/crafting';
 import { infect, infectionRisk } from './systems/health';
+import { adjustRelation, getTreaty, setTreaty } from './systems/treaties';
+
+/** 神諭停戰持續 3 分鐘（遊戲時間） */
+const TRUCE_TICKS = 1800;
 
 /**
  * 上帝之手：玩家直接介入世界的神力。
  * 施法立即生效並記錄在事件日誌；消耗神力值（世界法則可設為無限）。
  */
 
-export type PowerId = 'lightning' | 'plague' | 'bless' | 'gift' | 'reinforce' | 'forest' | 'ore';
+export type PowerId = 'lightning' | 'plague' | 'bless' | 'gift' | 'reinforce' | 'truce' | 'discord' | 'forest' | 'ore';
 
 export interface PowerDef {
   id: PowerId;
@@ -37,13 +41,17 @@ export const POWER_DEFS: Record<PowerId, PowerDef> = {
     desc: '點擊處最近的陣營獲得一批木、石、礦、糧' },
   reinforce: { id: 'reinforce', name: '援軍', icon: '🛡', cost: 50, radius: 0, color: '#9ec5ff',
     desc: '點擊處最近的陣營在營帳出現 3 名配好武器的戰士' },
+  truce: { id: 'truce', name: '神諭和平', icon: '🕊', cost: 45, radius: 0, color: '#e8f4ff',
+    desc: '點擊處最近的陣營與所有敵人強制停戰 3 分鐘，期滿自動恢復交戰' },
+  discord: { id: 'discord', name: '挑撥離間', icon: '🔥', cost: 35, radius: 0, color: '#ff7a5a',
+    desc: '點擊處最近的陣營撕毀所有和約與同盟，各方關係大幅惡化' },
   forest: { id: 'forest', name: '造林', icon: '🌲', cost: 10, radius: 1.5, color: '#5fd068',
     desc: '把範圍內的草地變成森林' },
   ore: { id: 'ore', name: '礦脈', icon: '⛏', cost: 15, radius: 1.5, color: '#e0904a',
     desc: '把範圍內的草地變成鐵礦' },
 };
 
-export const POWER_ORDER: PowerId[] = ['lightning', 'plague', 'bless', 'gift', 'reinforce', 'forest', 'ore'];
+export const POWER_ORDER: PowerId[] = ['lightning', 'plague', 'bless', 'gift', 'reinforce', 'truce', 'discord', 'forest', 'ore'];
 
 const GIFT: Resources = { wood: 80, stone: 60, ore: 50, food: 80 };
 
@@ -135,6 +143,31 @@ function apply(world: World, def: PowerDef, x: number, y: number): CastResult {
         if (u && weaponDef) u.weapon = { id: world.nextId++, defId: weaponDef.id, quality: 1, maker: '神賜' };
       }
       return { ok: true, message: `三名神選戰士加入了 ${f.name}${weaponDef ? `，手持${weaponDef.name}` : ''}` };
+    }
+    case 'truce': {
+      const f = nearestFaction(world, x, y);
+      if (!f) return { ok: false, message: '沒有存活的陣營' };
+      const foes = world.factions.filter((o) => o.alive && o.id !== f.id && getTreaty(world, f.id, o.id) === 'war');
+      if (!foes.length) return { ok: false, message: `${f.name} 目前沒有交戰對象` };
+      for (const o of foes) setTreaty(world, f.id, o.id, 'peace', world.tick + TRUCE_TICKS);
+      return { ok: true, message: `神諭降下：${f.name} 與 ${foes.map((o) => o.name).join('、')} 停戰 3 分鐘` };
+    }
+    case 'discord': {
+      const f = nearestFaction(world, x, y);
+      if (!f) return { ok: false, message: '沒有存活的陣營' };
+      const others = world.factions.filter((o) => o.alive && o.id !== f.id);
+      const broken = others.filter((o) => getTreaty(world, f.id, o.id) !== 'war');
+      for (const o of broken) setTreaty(world, f.id, o.id, 'war');
+      for (const o of others) {
+        adjustRelation(world, f.id, o.id, -30);
+        adjustRelation(world, o.id, f.id, -30);
+      }
+      return {
+        ok: true,
+        message: broken.length
+          ? `流言四起，${f.name} 與 ${broken.map((o) => o.name).join('、')} 反目成仇！`
+          : `流言四起，各方對 ${f.name} 的觀感大幅惡化`,
+      };
     }
     case 'forest':
     case 'ore': {

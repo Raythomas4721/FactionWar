@@ -22,6 +22,8 @@ import { craftTick } from './systems/crafting';
 import { deliverTick, gatherTick } from './systems/economy';
 import { equipTick } from './systems/equipment';
 import { infirmaryOf, updateDisease, updateHunger } from './systems/health';
+import { envoyTick, isAllianceVictory, subvertTick, updateDiplomacy, updateLoyalty } from './systems/diplomacy';
+import { initTreaties } from './systems/treaties';
 import { moveTo } from './systems/movement';
 
 export interface WorldOptions {
@@ -29,6 +31,9 @@ export interface WorldOptions {
   width?: number;
   height?: number;
 }
+
+/** 全員結盟要維持多久才算共治勝利（5 分鐘） */
+export const ALLIANCE_HOLD_TICKS = 3000;
 
 const START_ROLES: Role[] = ['worker', 'worker', 'worker', 'worker', 'worker', 'warrior', 'warrior', 'warrior', 'smith'];
 
@@ -55,6 +60,9 @@ export function createBlankWorld(seed: number, width = MAP_W, height = MAP_H, ru
     winner: null,
     endReason: '',
     rules: merged,
+    treaties: [],
+    truceUntil: [],
+    allianceSince: null,
     mana: MANA_MAX / 2,
   };
 }
@@ -79,8 +87,12 @@ export function createFaction(world: World, race: RaceId, races: RaceId[]): Fact
     gatherWeights: { food: 3, wood: 2, stone: 0.4, ore: 0.05 },
     commands: [],
     relations: races.map((other) => (other === race ? 100 : RIVALRY[race][other])),
-    stats: { kills: 0, deaths: 0, crafted: 0, built: 0, trained: 0, infections: 0, diseaseDeaths: 0, starved: 0, bestItem: null },
+    stats: {
+      kills: 0, deaths: 0, crafted: 0, built: 0, trained: 0,
+      infections: 0, diseaseDeaths: 0, starved: 0, recruited: 0, defected: 0, treaties: 0, bestItem: null,
+    },
     nextAiAt: 1 + world.factions.length * 5,
+    nextDiplomacyAt: 600 + world.factions.length * 50,
     playerControlled: false,
     starving: false,
   };
@@ -103,6 +115,7 @@ export function createWorld(seed: number, opts: WorldOptions = {}): World {
       if (u && role === 'warrior') u.weapon = starterWeapon(world, race);
     }
   });
+  initTreaties(world);
   logEvent(world, 'info', `新的戰局開始（種子 ${seed}）`);
   return world;
 }
@@ -141,6 +154,8 @@ export function step(world: World): void {
   updateBuildings(world);
   updateHunger(world);
   updateDisease(world);
+  updateLoyalty(world);
+  updateDiplomacy(world);
 
   const besieged = new Set<number>();
   for (const f of world.factions) {
@@ -181,6 +196,8 @@ function act(world: World, u: Unit): boolean {
     case 'attackUnit': return attackUnitTick(world, u, a.targetId);
     case 'attackBuilding': return attackBuildingTick(world, u, a.targetId);
     case 'equip': return equipTick(world, u);
+    case 'envoy': return envoyTick(world, u);
+    case 'subvert': return subvertTick(world, u, a.targetId);
     case 'guard':
       moveTo(world, u, a.x, a.y, 0.5);
       return true;
@@ -248,7 +265,22 @@ function cleanup(world: World): void {
 
 function checkVictory(world: World): void {
   const alive = world.factions.filter((f) => f.alive);
-  if (alive.length <= 1) {
+  if (isAllianceVictory(world)) {
+    if (world.allianceSince === null) {
+      world.allianceSince = world.tick;
+      logEvent(world, 'diplomacy', '天下諸國全數結盟！若同盟維持 5 分鐘，將共治大陸', -1);
+    }
+  } else if (world.allianceSince !== null) {
+    world.allianceSince = null;
+    logEvent(world, 'diplomacy', '同盟破裂，共治之夢落空', -1);
+  }
+
+  if (world.allianceSince !== null && world.tick - world.allianceSince >= ALLIANCE_HOLD_TICKS) {
+    world.over = true;
+    const leader = alive.reduce((a, b) => (score(world, b) > score(world, a) ? b : a));
+    world.winner = leader.id;
+    world.endReason = `${alive.map((f) => f.name).join('、')} 結盟共治大陸（盟主：${leader.name}）`;
+  } else if (alive.length <= 1) {
     world.over = true;
     world.winner = alive[0]?.id ?? null;
     world.endReason = alive[0] ? `${alive[0].name} 統一了大陸！` : '同歸於盡';

@@ -6,12 +6,16 @@ import { dist } from '../math';
 import { RACES } from '../races';
 import type { BuildingType, Command, Faction, Role, Unit, World } from '../types';
 import {
-  canAfford, centerOf, enemiesNear, factionBuildings, factionUnits, hasCompleted, hqOf, popCapOf,
+  areHostile, canAfford, centerOf, enemiesNear, factionBuildings, factionUnits, hasCompleted, hqOf, popCapOf,
 } from '../util';
 import { isBuildingUnlocked } from '../systems/building';
 import { pickCraftDef } from '../systems/crafting';
 import { unitCost } from '../commands';
 import { peaceTicksOf } from '../rules';
+import { hasCommonEnemy, raceIsDiplomatic } from '../systems/diplomacy';
+import { getTreaty } from '../systems/treaties';
+
+const DIPLOMACY_THINK_TICKS = 600;
 
 /**
  * 陣營策略 AI：每隔一段時間評估局勢，透過指令佇列下達「訓練 / 建造 / 打造 / 進攻」。
@@ -25,6 +29,7 @@ export function runFactionAi(world: World, f: Faction): void {
   const warriors = units.filter((u) => u.role === 'warrior');
   const cmds: Command[] = [];
 
+  decideDiplomacy(world, f, units, cmds);
   decideStance(world, f, warriors, cmds);
   decideTraining(world, f, units, hasForge, cmds);
   decideBuilding(world, f, units, cmds);
@@ -46,8 +51,9 @@ function decideStance(world: World, f: Faction, warriors: Unit[], cmds: Command[
   }
 
   if (f.stance === 'attack') {
-    const targetAlive = f.targetFaction !== null && world.factions[f.targetFaction].alive;
-    if (warriors.length < 3 || threatened || !targetAlive) {
+    const targetValid =
+      f.targetFaction !== null && world.factions[f.targetFaction].alive && areHostile(world, f.id, f.targetFaction);
+    if (warriors.length < 3 || threatened || !targetValid) {
       cmds.push({ type: 'setStance', stance: 'defend', target: null });
     }
     return;
@@ -63,16 +69,21 @@ function decideStance(world: World, f: Faction, warriors: Unit[], cmds: Command[
     (world.tick > 12000 && warriors.length >= 3);
   if (!ready || threatened) return;
 
-  // 挑「兵少又近」的敵人
+  // 挑「兵少又近」的敵人；盟友正在打的對象優先（聯合作戰）
+  const allyTargets = new Set(
+    world.factions
+      .filter((a) => a.alive && a.id !== f.id && getTreaty(world, f.id, a.id) === 'alliance' && a.stance === 'attack')
+      .map((a) => a.targetFaction),
+  );
   let target: Faction | null = null;
   let bestScore = Infinity;
   for (const e of world.factions) {
-    if (e.id === f.id || !e.alive) continue;
+    if (e.id === f.id || !e.alive || !areHostile(world, f.id, e.id)) continue;
     const ehq = hqOf(world, e);
     if (!ehq) continue;
     const ec = centerOf(ehq);
     const enemyWarriors = factionUnits(world, e.id).filter((u) => u.role === 'warrior').length;
-    const score = enemyWarriors + dist(hc.x, hc.y, ec.x, ec.y) / 8;
+    const score = enemyWarriors + dist(hc.x, hc.y, ec.x, ec.y) / 8 - (allyTargets.has(e.id) ? 6 : 0);
     if (score < bestScore) {
       bestScore = score;
       target = e;
@@ -81,16 +92,64 @@ function decideStance(world: World, f: Faction, warriors: Unit[], cmds: Command[
   if (target) cmds.push({ type: 'setStance', stance: 'attack', target: target.id });
 }
 
+/**
+ * 外交判斷（玩家指揮的陣營由玩家決定）：
+ * 打不過就求和、有共同敵人就結盟、自己夠強又看對方不順眼就撕毀條約。
+ */
+function decideDiplomacy(world: World, f: Faction, units: Unit[], cmds: Command[]): void {
+  if (f.playerControlled || world.tick < f.nextDiplomacyAt) return;
+  f.nextDiplomacyAt = world.tick + DIPLOMACY_THINK_TICKS;
+  const strength = (id: number) => factionUnits(world, id).filter((u) => u.role === 'warrior').length;
+  const mine = strength(f.id);
+  const others = world.factions.filter((o) => o.alive && o.id !== f.id);
+  const enemies = others.filter((o) => areHostile(world, f.id, o.id));
+  const partners = others.filter((o) => !areHostile(world, f.id, o.id));
+
+  // 撕毀條約：關係惡劣又打得贏
+  for (const p of partners) {
+    const limit = getTreaty(world, f.id, p.id) === 'alliance' ? -20 : 0;
+    if (f.relations[p.id] < limit && mine > strength(p.id) * 1.3) {
+      cmds.push({ type: 'declareWar', target: p.id });
+      return;
+    }
+  }
+  // 野心：天下已無敵人、自己兵強馬壯時，有機會對最弱的盟友下手
+  if (enemies.length === 0 && partners.length && mine >= 10 && world.rng.chance(0.5)) {
+    const weakest = partners.reduce((a, b) => (strength(b.id) < strength(a.id) ? b : a));
+    cmds.push({ type: 'declareWar', target: weakest.id });
+    return;
+  }
+
+  const envoyOut = units.some((u) => u.action.type === 'envoy');
+  if (envoyOut || !units.some((u) => u.role === 'diplomat')) return;
+
+  // 求和：對手明顯比我們強，或同時兩線作戰
+  const threats = enemies
+    .filter((e) => strength(e.id) > mine * 1.3 || enemies.length >= 2)
+    .sort((a, b) => strength(b.id) - strength(a.id));
+  if (threats.length) {
+    cmds.push({ type: 'propose', target: threats[0].id, proposal: 'peace' });
+    return;
+  }
+  // 結盟：和平中的對象，且雙方有共同敵人
+  const friend = partners.find(
+    (p) => getTreaty(world, f.id, p.id) === 'peace' && f.relations[p.id] > -10 && hasCommonEnemy(world, f.id, p.id),
+  );
+  if (friend) cmds.push({ type: 'propose', target: friend.id, proposal: 'alliance' });
+}
+
 function decideTraining(world: World, f: Faction, units: Unit[], hasForge: boolean, cmds: Command[]): void {
   if (units.length >= popCapOf(world, f.id)) return;
   const count = (r: Role) => units.filter((u) => u.role === r).length;
   const workers = count('worker');
   const warriors = count('warrior');
   const smiths = count('smith');
+  const diplomats = count('diplomat');
 
   let role: Role;
   if (workers < 6) role = 'worker';
   else if (smiths < (hasForge ? 2 : 1)) role = 'smith';
+  else if (f.tech >= 1 && diplomats < (raceIsDiplomatic(f) ? 2 : 1)) role = 'diplomat';
   else if (workers < 10 && workers < warriors * 0.8) role = 'worker';
   else role = 'warrior';
 

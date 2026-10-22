@@ -72,6 +72,14 @@ export function RulesPanel({ rules, active, onChange, onNewGame, onClose }: Prop
           />
           神力無限（沙盒模式）
         </label>
+        <label className="rule-check">
+          <input
+            type="checkbox"
+            checked={rules.allianceVictory}
+            onChange={(e) => onChange({ ...rules, allianceVictory: e.target.checked })}
+          />
+          所有存活陣營結盟時，算「結盟共治」勝利
+        </label>
 
         <div className="modal-actions">
           <button onClick={() => onChange(DEFAULT_RULES)}>恢復預設</button>

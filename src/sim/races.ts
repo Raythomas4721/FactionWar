@@ -58,7 +58,7 @@ export const RACES: Record<RaceId, RaceDef> = {
     buildSpeed: 1,
     libraryBonus: 0.6,
     names: ['格羅姆', '薩克', '烏佐格', '卡加斯', '杜洛克', '莫格', '拉卡', '戈爾', '納茲', '布魯格'],
-    traits: ['訓練便宜、房屋容納更多人口、食量大', '力量與體質高，近戰兇猛', '智慧低，科技發展慢', '專屬：狼牙棒、戰斧加成'],
+    traits: ['訓練便宜、房屋容納更多人口、食量大', '力量與體質高，近戰兇猛', '智慧低科技慢；魅力低，容易被策反', '專屬：狼牙棒、戰斧加成'],
   },
   elf: {
     id: 'elf',
@@ -66,7 +66,7 @@ export const RACES: Record<RaceId, RaceDef> = {
     factionName: '精靈王國',
     color: '#b98cff',
     base: { str: 7, agi: 14, int: 14, con: 9, cha: 10 },
-    unitCost: 38,
+    unitCost: 42,
     popPerHouse: 5,
     towerDamageMult: 1,
     maxTowers: 2,
@@ -118,16 +118,16 @@ export const RACES: Record<RaceId, RaceDef> = {
     buildSpeed: 1,
     libraryBonus: 0.8,
     names: ['亞瑟', '艾德', '莉亞', '馬可', '湯姆', '珊莎', '羅倫', '凱爾', '貝絲', '奧文'],
-    traits: ['各項屬性均衡、比較不容易生病', '魅力高：士氣不易崩潰；書院加成較高', '劍與十字弩打造加成', '（M4 外交、策反最強）'],
+    traits: ['各項屬性均衡、比較不容易生病', '魅力高：士氣不易崩潰；書院加成較高', '劍與十字弩打造加成', '外交、策反最強（多培養一名外交官）'],
   },
 };
 
 export const RACE_ORDER: RaceId[] = ['orc', 'elf', 'dwarf', 'human'];
 
-/** 種族宿怨，作為初始關係值。M4 外交系統才會真正使用 */
+/** 種族宿怨：初始關係值，關係也會慢慢回歸到這個基準 */
 export const RIVALRY: Record<RaceId, Record<RaceId, number>> = {
-  orc: { orc: 0, elf: -50, dwarf: -40, human: -40 },
-  elf: { orc: -50, elf: 0, dwarf: -30, human: 10 },
-  dwarf: { orc: -40, elf: -30, dwarf: 0, human: 10 },
-  human: { orc: -40, elf: 10, dwarf: 10, human: 0 },
+  orc: { orc: 0, elf: -30, dwarf: -20, human: -20 },
+  elf: { orc: -30, elf: 0, dwarf: -25, human: 10 },
+  dwarf: { orc: -20, elf: -25, dwarf: 0, human: 10 },
+  human: { orc: -20, elf: 10, dwarf: 10, human: 0 },
 };
