@@ -4,7 +4,8 @@ import { TECH_THRESHOLDS } from '../src/sim/constants';
 import { castPower } from '../src/sim/powers';
 import { peaceTicksOf } from '../src/sim/rules';
 import { centerOf, hqOf } from '../src/sim/util';
-import { createWorld, step } from '../src/sim/world';
+import { step } from '../src/sim/world';
+import { createWorld } from './helpers';
 
 describe('上帝之手', () => {
   it('天雷傷害範圍內所有小人並消耗神力', () => {
@@ -79,17 +80,19 @@ describe('世界法則', () => {
     expect(sum(rich)).toBeCloseTo(sum(normal) * 2, -2);
   });
 
-  it('休戰期內 AI 不會進攻', () => {
+  it('休戰期內 AI 不會進攻其他陣營（但可以討伐中立巢穴）', () => {
     const w = createWorld(2, { rules: { peaceMinutes: 3 } });
     const end = peaceTicksOf(w.rules);
     while (w.tick < end - 1) {
       step(w);
-      expect(w.factions.every((f) => f.stance === 'defend')).toBe(true);
+      expect(
+        w.factions.every((f) => f.neutral || f.stance === 'defend' || (f.targetFaction !== null && w.factions[f.targetFaction].neutral)),
+      ).toBe(true);
     }
   });
 
   it('種族天賦倍率影響新生小人的屬性', () => {
-    const strong = createWorld(9, { rules: { racePower: { orc: 1.5, elf: 1, dwarf: 1, human: 1 } } });
+    const strong = createWorld(9, { rules: { racePower: { orc: 1.5, elf: 1, dwarf: 1, human: 1, undead: 1, insect: 1, beast: 1 } } });
     const normal = createWorld(9);
     const strOf = (w: typeof strong) =>
       w.units.filter((u) => u.race === 'orc').reduce((s, u) => s + u.attrs.str, 0);

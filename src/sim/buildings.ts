@@ -17,7 +17,7 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
   hq: { type: 'hq', name: '營帳', glyph: '帳', hp: 800, cost: {}, tech: 0, work: 0,
     desc: '陣營核心：存放資源、訓練小人、治療附近傷兵、射擊來犯者。被攻陷即滅亡。' },
   house: { type: 'house', name: '房屋', glyph: '屋', hp: 150, cost: { wood: 30 }, tech: 0, work: 1,
-    desc: '提高人口上限（獸人 +6，其他種族 +5）' },
+    desc: '提高人口上限（獸人 +7、蟲族 +9，其他種族 +5）' },
   farm: { type: 'farm', name: '農田', glyph: '田', hp: 100, cost: { wood: 25 }, tech: 0, work: 0.8,
     desc: '持續產出糧食' },
   forge: { type: 'forge', name: '鍛造坊', glyph: '鍛', hp: 220, cost: { wood: 30, stone: 30 }, tech: 1, work: 1.5,
@@ -30,6 +30,8 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
     desc: '自動射擊附近的敵人' },
   stable: { type: 'stable', name: '馬廄', glyph: '馬', hp: 200, cost: { wood: 40, stone: 20 }, tech: 2, work: 1.3,
     desc: '可以訓練騎兵（人類的騎士、獸人的狼騎兵）' },
+  lair: { type: 'lair', name: '巢穴', glyph: '巢', hp: 400, cost: {}, tech: 99, work: 0,
+    desc: '中立怪物守護的巢穴；攻陷它的陣營可以奪得寶藏，周圍的遠古礦脈也會開放採集' },
   infirmary: { type: 'infirmary', name: '醫館', glyph: '醫', hp: 150, cost: { wood: 30, stone: 15 }, tech: 1, work: 1.2,
     desc: '附近的病患康復速度 ×3，陣營自發染病機率 -40%' },
 };

@@ -4,11 +4,17 @@ import { FIST_DMG, hasTrait, itemDef } from '../items';
 import { clamp, dist } from '../math';
 import { cooldownOf, moraleLossMult } from '../stats';
 import type { Attributes, Building, Faction, Unit, World } from '../types';
-import { areHostile, centerOf, distToBuilding, getBuilding, isTargetable, logEvent, unitLabel } from '../util';
+import {
+  areHostile, centerOf, distToBuilding, getBuilding, isTargetable, logEvent, popCapOf, popOf, spawnUnit, unitLabel,
+} from '../util';
 import { adjustRelation } from './treaties';
 import { revealAfterAttack } from './troopActions';
 import { infect, infectionRisk } from './health';
-import { CHARGE_DISTANCE, CHARGE_MULT, SAPPER_VS_BUILDING, SPEAR_VS_CAVALRY, AMBUSH_MULT } from '../troops';
+import { RACES } from '../races';
+import { claimLair, hasRelic, lairOfBuilding } from './neutral';
+import {
+  AMBUSH_MULT, CHARGE_DISTANCE, CHARGE_MULT, LIFESTEAL, SAPPER_VS_BUILDING, SPEAR_VS_CAVALRY, STING_INFECT,
+} from '../troops';
 import { moveTo } from './movement';
 
 const BUILDING_ARMOR = 2;
@@ -46,12 +52,22 @@ const attackCooldown = (u: Unit) => Math.round(cooldownOf(u.attrs) * (hasTrait(u
 export function damageUnit(world: World, target: Unit, dmg: number, byFaction: number, byLabel: string, byUnit?: Unit): void {
   if (target.hp <= 0) return;
   target.hp -= dmg;
-  target.morale = clamp(target.morale - dmg * 0.8 * moraleLossMult(target.attrs), 0, 100);
+  if (!RACES[target.race].fearless) {
+    const iron = hasRelic(world, target.factionId, 'iron') ? 0.5 : 1;
+    target.morale = clamp(target.morale - dmg * 0.8 * moraleLossMult(target.attrs) * iron, 0, 100);
+  }
   if (target.hp > 0) return;
 
   handleDeath(world, target);
   if (byFaction >= 0) {
-    world.factions[byFaction].stats.kills++;
+    const killer = world.factions[byFaction];
+    killer.stats.kills++;
+    // 吞噬：蟲族把屍體吃掉，換成研究點數與糧食
+    const devour = RACES[killer.race].devour;
+    if (devour > 0) {
+      killer.research += devour;
+      killer.resources.food += devour;
+    }
     // 血債：被殺的一方對兇手的觀感變差
     adjustRelation(world, target.factionId, byFaction, -1.5);
   }
@@ -62,13 +78,38 @@ export function damageUnit(world: World, target: Unit, dmg: number, byFaction: n
   logEvent(world, 'combat', `${byLabel} 擊殺了 ${unitLabel(target)}`, byFaction);
 }
 
-/** 任何死因都會做的事：記錄陣亡、附近同伴士氣下降 */
+/** 任何死因都會做的事：記錄陣亡、附近同伴士氣下降、可能被死靈族喚起 */
 export function handleDeath(world: World, target: Unit): void {
   world.factions[target.factionId].stats.deaths++;
   for (const ally of world.units) {
-    if (ally.factionId === target.factionId && ally.hp > 0 && dist(ally.x, ally.y, target.x, target.y) < 5) {
+    if (ally.factionId === target.factionId && ally.hp > 0 && !RACES[ally.race].fearless && dist(ally.x, ally.y, target.x, target.y) < 5) {
       ally.morale = clamp(ally.morale - 8 * moraleLossMult(ally.attrs), 0, 100);
     }
+  }
+  raiseDead(world, target);
+}
+
+/** 招魂半徑：死者附近有死靈族的人，屍骸才可能被喚起 */
+const RAISE_RADIUS = 7;
+
+/** 招魂：活人死去時，附近的死靈族有機會把屍骸喚起成骷髏兵（帶著原本的武器） */
+function raiseDead(world: World, corpse: Unit): void {
+  if (RACES[corpse.race].raiseDead > 0) return; // 死靈不會再次復生
+  for (const f of world.factions) {
+    const chance = RACES[f.race].raiseDead;
+    if (!f.alive || chance <= 0) continue;
+    const necromancerNear = world.units.some(
+      (u) => u.factionId === f.id && u.hp > 0 && u !== corpse && dist(u.x, u.y, corpse.x, corpse.y) <= RAISE_RADIUS,
+    );
+    if (!necromancerNear || popOf(world, f.id) >= popCapOf(world, f.id) + 5 || !world.rng.chance(chance)) continue;
+    const skeleton = spawnUnit(world, f, 'warrior');
+    if (!skeleton) continue;
+    skeleton.x = corpse.x;
+    skeleton.y = corpse.y;
+    skeleton.name = `${corpse.name}的骸骨`;
+    skeleton.weapon = corpse.weapon;
+    logEvent(world, 'combat', `☠ ${unitLabel(corpse)} 的屍骸被${f.name}喚起，化為骷髏兵`, f.id);
+    return;
   }
 }
 
@@ -78,7 +119,10 @@ export function damageBuilding(world: World, b: Building, dmg: number, byFaction
   if (b.hp > 0) return;
   const owner = world.factions[b.factionId];
   const attacker = byFaction >= 0 ? world.factions[byFaction] : null;
-  if (b.type === 'hq') {
+  const lair = b.type === 'lair' ? lairOfBuilding(world, b.id) : undefined;
+  if (lair) {
+    claimLair(world, lair, byFaction);
+  } else if (b.type === 'hq') {
     eliminateFaction(world, owner, attacker);
   } else {
     const who = attacker ? attacker.name : '天災';
@@ -108,14 +152,20 @@ export function strikeUnit(world: World, u: Unit, target: Unit): void {
     revealAfterAttack(world, u);
     return;
   }
-  const raw = rawDamage(u) * world.rng.range(0.85, 1.15) * world.rules.damageMult * troopMultiplier(u, target);
+  // 烈焰對死靈等不潔之物傷害加倍
+  const holyFire = hasTrait(u.weapon, 'flame') && RACES[target.race].unholy ? 2 : 1;
+  const war = hasRelic(world, u.factionId, 'war') ? 1.2 : 1;
+  const raw = rawDamage(u) * world.rng.range(0.85, 1.15) * world.rules.damageMult * troopMultiplier(u, target) * holyFire * war;
   u.charge = 0;
   revealAfterAttack(world, u);
   const dmg = mitigatedDamage(raw, target.attrs, armorOf(target), hasTrait(u.weapon, 'pierce'));
   damageUnit(world, target, dmg, u.factionId, unitLabel(u), u);
-  // 淬毒：命中後可能讓對方染病（體質與抗性照算）
-  if (target.hp > 0 && hasTrait(u.weapon, 'venom') && world.rng.chance(0.3 * infectionRisk(world, target))) {
-    infect(world, target);
+  // 食屍鬼吸血
+  if (u.troop === 'ghoul') u.hp = Math.min(u.maxHp, u.hp + dmg * LIFESTEAL);
+  // 淬毒武器、毒刺蟲：命中後可能讓對方染病（體質與抗性照算）
+  if (target.hp > 0) {
+    const poison = (hasTrait(u.weapon, 'venom') ? 0.3 : 0) + (u.troop === 'stinger' ? STING_INFECT : 0);
+    if (poison > 0 && world.rng.chance(poison * infectionRisk(world, target))) infect(world, target);
   }
 }
 
@@ -135,7 +185,9 @@ export function strikeBuilding(world: World, u: Unit, b: Building): void {
   u.cooldown = attackCooldown(u);
   const c = centerOf(b);
   if (weaponStats(u).ranged) addTracer(world, u, c.x, c.y);
-  const siege = (u.troop === 'sapper' ? SAPPER_VS_BUILDING : 1) * (hasTrait(u.weapon, 'flame') ? 2 : 1);
+  const siege =
+    (u.troop === 'sapper' ? SAPPER_VS_BUILDING : 1) * (hasTrait(u.weapon, 'flame') ? 2 : 1) *
+    (hasRelic(world, u.factionId, 'war') ? 1.2 : 1);
   const dmg = Math.max(1, rawDamage(u) * world.rng.range(0.85, 1.15) * world.rules.damageMult * siege - BUILDING_ARMOR);
   u.charge = 0;
   revealAfterAttack(world, u);

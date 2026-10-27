@@ -93,6 +93,11 @@ export function nearestEnemyUnit(world: World, u: Unit, radius: number): Unit | 
   return best;
 }
 
+/** 存活中、真正在爭天下的陣營（排除中立怪物） */
+export function contenders(world: World): Faction[] {
+  return world.factions.filter((f) => f.alive && !f.neutral);
+}
+
 export function factionUnits(world: World, factionId: number): Unit[] {
   return world.units.filter((u) => u.factionId === factionId && u.hp > 0);
 }
@@ -128,14 +133,14 @@ export function rollAttributes(world: World, base: Attributes): Attributes {
   return a;
 }
 
-export function spawnUnit(world: World, f: Faction, role: Role, troop: Troop = 'soldier'): Unit | null {
+export function spawnUnit(world: World, f: Faction, role: Role, troop: Troop = 'soldier', at?: Point): Unit | null {
   const hq = hqOf(world, f);
-  if (!hq) return null;
-  const c = centerOf(hq);
+  if (!hq && !at) return null;
+  const c = at ?? centerOf(hq!);
   const race = RACES[f.race];
   const power = world.rules.racePower[f.race];
   const base = { ...race.base };
-  for (const k of ATTR_KEYS) base[k] *= power;
+  for (const k of ATTR_KEYS) base[k] = base[k] * power + f.attrBonus[k];
   const attrs = rollAttributes(world, base);
   const hp = maxHpOf(attrs);
   const u: Unit = {

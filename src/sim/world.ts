@@ -11,7 +11,7 @@ import { maxTicksOf, mergeRules, type WorldRules } from './rules';
 import { moraleRegenOf } from './stats';
 import type { Faction, Item, RaceId, Role, Unit, World } from './types';
 import {
-  centerOf, enemiesNear, factionBuildings, factionUnits, hqOf, logEvent, spawnUnit,
+  centerOf, contenders, enemiesNear, factionBuildings, factionUnits, hqOf, logEvent, spawnUnit,
 } from './util';
 import { runFactionAi } from './ai/faction';
 import { think } from './ai/utility';
@@ -21,9 +21,10 @@ import { buildTick, createBuilding, updateBuildings } from './systems/building';
 import { craftTick } from './systems/crafting';
 import { deliverTick, gatherTick } from './systems/economy';
 import { equipTick } from './systems/equipment';
-import { infirmaryOf, updateDisease, updateHunger } from './systems/health';
+import { infirmaryOf, updateAging, updateDisease, updateHunger } from './systems/health';
 import { envoyTick, isAllianceVictory, subvertTick, updateDiplomacy, updateLoyalty } from './systems/diplomacy';
 import { initTreaties } from './systems/treaties';
+import { guardianRegen, guardianThink, hasRelic, setupLairs } from './systems/neutral';
 import { ambushTick, tunnelTick, updateStealth } from './systems/troopActions';
 import { moveTo } from './systems/movement';
 
@@ -65,6 +66,7 @@ export function createBlankWorld(seed: number, width = MAP_W, height = MAP_H, ru
     truceUntil: [],
     allianceSince: null,
     mana: MANA_MAX / 2,
+    lairs: [],
   };
 }
 
@@ -97,6 +99,9 @@ export function createFaction(world: World, race: RaceId, races: RaceId[]): Fact
     nextDiplomacyAt: 600 + world.factions.length * 50,
     playerControlled: false,
     starving: false,
+    neutral: race === 'beast',
+    relics: [],
+    attrBonus: { str: 0, agi: 0, int: 0, con: 0, cha: 0 },
   };
   world.factions.push(f);
   return f;
@@ -107,7 +112,7 @@ export function createWorld(seed: number, opts: WorldOptions = {}): World {
   const map = generateMap(world.rng, world.width, world.height, world.rules.resourceRichness);
   world.tiles = map.tiles;
 
-  const races = world.rng.shuffle([...RACE_ORDER]);
+  const races = pickRaces(world);
   races.forEach((race, i) => {
     const f = createFaction(world, race, races);
     const spot = map.hqSpots[i];
@@ -117,9 +122,20 @@ export function createWorld(seed: number, opts: WorldOptions = {}): World {
       if (u && role === 'warrior') u.weapon = starterWeapon(world, race);
     }
   });
+  if (world.rules.neutralLairs) {
+    const beast = createFaction(world, 'beast', [...races, 'beast']);
+    setupLairs(world, beast, map, (x, y) => createBuilding(world, beast, 'lair', x, y, true).id);
+  }
   initTreaties(world);
   logEvent(world, 'info', `新的戰局開始（種子 ${seed}）`);
   return world;
+}
+
+/** 世界法則指定的種族優先，不足 4 個就從其他種族隨機補上 */
+function pickRaces(world: World): RaceId[] {
+  const chosen = [...new Set(world.rules.raceSelection)].filter((r) => RACE_ORDER.includes(r)).slice(0, 4);
+  const rest = world.rng.shuffle(RACE_ORDER.filter((r) => !chosen.includes(r)));
+  return world.rng.shuffle([...chosen, ...rest.slice(0, 4 - chosen.length)]);
 }
 
 function starterWeapon(world: World, race: RaceId): Item {
@@ -145,7 +161,7 @@ export function step(world: World): void {
 
   for (const f of world.factions) {
     if (!f.alive) continue;
-    if (world.tick >= f.nextAiAt) {
+    if (world.tick >= f.nextAiAt && !f.neutral) {
       runFactionAi(world, f);
       f.nextAiAt = world.tick + AI_INTERVAL;
     }
@@ -156,6 +172,7 @@ export function step(world: World): void {
   updateBuildings(world);
   updateHunger(world);
   updateDisease(world);
+  updateAging(world);
   updateLoyalty(world);
   updateStealth(world);
   updateDiplomacy(world);
@@ -172,14 +189,16 @@ export function step(world: World): void {
     if (u.hp <= 0) continue;
     if (u.cooldown > 0) u.cooldown--;
     if (world.tick >= u.thinkAt) {
-      think(world, u);
+      if (u.monster) guardianThink(world, u);
+      else think(world, u);
       u.thinkAt = world.tick + 6 + (u.id % 4);
     }
     if (!act(world, u)) {
       u.action = { type: 'idle' };
       u.thinkAt = world.tick + 1;
     }
-    recover(world, u, besieged);
+    if (u.monster) guardianRegen(world, u);
+    else recover(world, u, besieged);
   }
 
   cleanup(world);
@@ -220,13 +239,14 @@ function act(world: World, u: Unit): boolean {
 
 /** 士氣自然回復；在自家營帳旁會治療傷勢（營帳被圍攻時無法休養） */
 function recover(world: World, u: Unit, besieged: Set<number>): void {
-  u.morale = clamp(u.morale + moraleRegenOf(u.attrs), 0, 100);
+  u.morale = RACES[u.race].fearless ? 100 : clamp(u.morale + moraleRegenOf(u.attrs), 0, 100);
   const hq = hqOf(world, world.factions[u.factionId]);
   if (hq && !besieged.has(u.factionId)) {
     const c = centerOf(hq);
     if (dist(u.x, u.y, c.x, c.y) <= HQ_REST_RADIUS) {
       // 病人在營帳只能休息，傷勢要等病好（或去醫館）才會恢復
-      if (!u.sick) u.hp = Math.min(u.maxHp, u.hp + 0.06 + u.attrs.con * 0.006);
+      const heal = (0.06 + u.attrs.con * 0.006) * (hasRelic(world, u.factionId, 'vitality') ? 2 : 1);
+      if (!u.sick) u.hp = Math.min(u.maxHp, u.hp + heal);
       u.morale = clamp(u.morale + 0.4, 0, 100);
     }
   }
@@ -242,7 +262,8 @@ function updateResearch(world: World): void {
     const libraries = factionBuildings(world, f.id, 'library')
       .filter((b) => b.complete)
       .reduce((s, b) => s + b.quality, 0);
-    f.research += 0.004 * intSum * (1 + RACES[f.race].libraryBonus * libraries) * world.rules.researchMult;
+    const wisdom = hasRelic(world, f.id, 'wisdom') ? 1.5 : 1;
+    f.research += 0.004 * intSum * (1 + RACES[f.race].libraryBonus * libraries) * world.rules.researchMult * wisdom;
     while (f.tech < MAX_TECH && f.research >= TECH_THRESHOLDS[f.tech + 1]) {
       f.tech++;
       logEvent(world, 'tech', `${f.name} 科技提升到 Lv${f.tech}，解鎖：${unlocksAt(f, f.tech)}`, f.id);
@@ -272,7 +293,7 @@ function cleanup(world: World): void {
 }
 
 function checkVictory(world: World): void {
-  const alive = world.factions.filter((f) => f.alive);
+  const alive = contenders(world);
   if (isAllianceVictory(world)) {
     if (world.allianceSince === null) {
       world.allianceSince = world.tick;

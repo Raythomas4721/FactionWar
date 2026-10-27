@@ -10,6 +10,10 @@ export interface MapResult {
   tiles: Tile[];
   /** 四個營帳的左上角（2x2） */
   hqSpots: Point[];
+  /** 四座象限巢穴的左上角（2x2） */
+  lairSpots: Point[];
+  /** 中央巨龍之巢的左上角（2x2） */
+  dragonSpot: Point;
 }
 
 const AMOUNTS: Record<TileKind, number> = {
@@ -17,6 +21,8 @@ const AMOUNTS: Record<TileKind, number> = {
 };
 
 const HQ_LOCAL: Point = { x: 5, y: 5 };
+/** 象限內巢穴的左上角 */
+const LAIR_LOCAL: Point = { x: 24, y: 12 };
 const BASE_CLEAR_RADIUS = 4.5;
 
 export function generateMap(rng: Rng, w: number, h: number, richness = 1): MapResult {
@@ -34,10 +40,16 @@ function tryGenerate(rng: Rng, w: number, h: number, richness: number): MapResul
   const hqCx = HQ_LOCAL.x + 1;
   const hqCy = HQ_LOCAL.y + 1;
 
+  // 巢穴與地圖中央要留空地放建築
+  const reserved = [
+    { x: LAIR_LOCAL.x + 1, y: LAIR_LOCAL.y + 1, r: 2.2 },
+    { x: qw, y: qh, r: 1.6 },
+  ];
   const canPlace = (x: number, y: number) =>
     x >= 0 && y >= 0 && x < qw && y < qh &&
     q[y * qw + x].kind === 'grass' &&
-    Math.hypot(x + 0.5 - hqCx, y + 0.5 - hqCy) > BASE_CLEAR_RADIUS;
+    Math.hypot(x + 0.5 - hqCx, y + 0.5 - hqCy) > BASE_CLEAR_RADIUS &&
+    reserved.every((r) => Math.hypot(x + 0.5 - r.x, y + 0.5 - r.y) > r.r);
 
   const blob = (cx: number, cy: number, n: number, kind: TileKind, baseAmount = AMOUNTS[kind]) => {
     const amount = Math.round(baseAmount * richness);
@@ -70,8 +82,11 @@ function tryGenerate(rng: Rng, w: number, h: number, richness: number): MapResul
   blob(rng.int(16, 26), rng.int(14, 21), 18, 'forest');
   blob(rng.int(20, 28), rng.int(2, 8), 12, 'forest');
   blob(rng.int(22, 27), rng.int(17, 21), 6, 'rock');
-  // 地圖中央的富礦，四方爭奪
+  // 地圖中央的富礦，四方爭奪（巨龍守護）
   blob(qw - 2, qh - 2, 8, 'ore', 140);
+  // 巢穴周圍的遠古礦脈
+  blob(LAIR_LOCAL.x + 1, LAIR_LOCAL.y + 4, 5, 'ore', 220);
+  blob(LAIR_LOCAL.x + 4, LAIR_LOCAL.y, 4, 'ore', 220);
 
   const tiles: Tile[] = Array.from({ length: w * h }, () => ({ kind: 'grass', amount: 0 }));
   for (let y = 0; y < qh; y++) {
@@ -89,7 +104,13 @@ function tryGenerate(rng: Rng, w: number, h: number, richness: number): MapResul
     { x: HQ_LOCAL.x, y: h - 1 - (HQ_LOCAL.y + 1) },
     { x: w - 1 - (HQ_LOCAL.x + 1), y: h - 1 - (HQ_LOCAL.y + 1) },
   ];
-  return { tiles, hqSpots };
+  const mirror = (p: Point): Point[] => [
+    { x: p.x, y: p.y },
+    { x: w - 1 - (p.x + 1), y: p.y },
+    { x: p.x, y: h - 1 - (p.y + 1) },
+    { x: w - 1 - (p.x + 1), y: h - 1 - (p.y + 1) },
+  ];
+  return { tiles, hqSpots, lairSpots: mirror(LAIR_LOCAL), dragonSpot: { x: qw - 1, y: qh - 1 } };
 }
 
 function isConnected(map: MapResult, w: number, h: number): boolean {

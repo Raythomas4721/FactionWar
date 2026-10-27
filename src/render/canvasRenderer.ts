@@ -1,6 +1,7 @@
 import { BUILDING_DEFS } from '../sim/buildings';
 import { BUILDING_SIZE } from '../sim/constants';
 import { itemDef } from '../sim/items';
+import { MONSTERS, treasureGlyph } from '../sim/lairs';
 import type { TileKind, Unit, World } from '../sim/types';
 
 export const TILE_PX = 12;
@@ -83,7 +84,8 @@ export class CanvasRenderer {
       ctx.globalAlpha = 1;
       ctx.fillStyle = b.complete ? '#fff' : 'rgba(255,255,255,0.7)';
       ctx.font = `bold ${b.type === 'hq' ? 15 : 13}px "Microsoft JhengHei", "PingFang TC", sans-serif`;
-      ctx.fillText(BUILDING_DEFS[b.type].glyph, x + s / 2, y + s / 2 + 1);
+      const lair = b.type === 'lair' ? world.lairs.find((l) => l.buildingId === b.id) : undefined;
+      ctx.fillText(lair ? treasureGlyph(lair.treasure) : BUILDING_DEFS[b.type].glyph, x + s / 2, y + s / 2 + 1);
       if (!b.complete) bar(ctx, x + 2, y + s - 4, s - 4, b.progress, '#f5d76e');
       else if (b.hp < b.maxHp) bar(ctx, x + 2, y - 3, s - 4, b.hp / b.maxHp, hpColor(b.hp / b.maxHp));
       if (selection?.kind === 'building' && selection.id === b.id) {
@@ -150,6 +152,34 @@ export class CanvasRenderer {
     const y = u.y * T;
     ctx.globalAlpha = u.action.type === 'retreat' ? 0.6 : 1;
     if (u.hidden) ctx.globalAlpha = 0.35;
+    if (u.monster) {
+      const big = u.monster === 'dragon';
+      const r = big ? 8 : 5;
+      ctx.fillStyle = big ? '#b02a1e' : '#7a2420';
+      ctx.strokeStyle = '#ff8a6a';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(x, y - r);
+      ctx.lineTo(x + r, y);
+      ctx.lineTo(x, y + r);
+      ctx.lineTo(x - r, y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#ffe3d6';
+      ctx.font = `bold ${big ? 11 : 8}px "Microsoft JhengHei", sans-serif`;
+      ctx.fillText(MONSTERS[u.monster].glyph, x, y + 0.5);
+      ctx.globalAlpha = 1;
+      if (u.hp < u.maxHp) bar(ctx, x - r, y - r - 4, r * 2, u.hp / u.maxHp, hpColor(u.hp / u.maxHp));
+      if (selection?.kind === 'unit' && selection.id === u.id) {
+        ctx.strokeStyle = '#ffe14d';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(x, y, r + 4, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      return;
+    }
     if (u.underground) {
       // 地底的工兵：只看得到翻動的土堆
       ctx.globalAlpha = 0.7;

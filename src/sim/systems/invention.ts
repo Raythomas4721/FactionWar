@@ -15,7 +15,8 @@ const ARMOR_TRAITS: TraitId[] = ['sturdy', 'blessed'];
  */
 export function inventionChance(world: World, smith: Unit, f: Faction): number {
   const base = Math.max(0, (smith.attrs.int - 10) * 0.035);
-  return clamp(base * (hasCompleted(world, f.id, 'library') ? 1.5 : 1) * world.rules.inventionMult, 0, 0.9);
+  const wisdom = f.relics.includes('wisdom') ? 1.5 : 1;
+  return clamp(base * (hasCompleted(world, f.id, 'library') ? 1.5 : 1) * world.rules.inventionMult * wisdom, 0, 0.9);
 }
 
 /** 藍圖的威力倍率：越聰明的發明者做出越強的設計 */

@@ -10,9 +10,11 @@ import type { Building, Unit, World } from '../sim/types';
 import { RESOURCE_NAMES, getBuilding, hasCompleted, unitLabel } from '../sim/util';
 import { CHARGE_DISTANCE, TROOP_DEFS, troopName } from '../sim/troops';
 import { formatTime } from './ControlBar';
-import { infectionRisk } from '../sim/systems/health';
+import { infectionRisk, lifespanOf } from '../sim/systems/health';
 import { persuadeChance } from '../sim/systems/diplomacy';
 import { inventionChance } from '../sim/systems/invention';
+import { guardiansOf, lairOfBuilding } from '../sim/systems/neutral';
+import { MONSTERS, treasureLabel } from '../sim/lairs';
 
 const ATTR_HINTS: Record<string, string> = {
   str: '近戰傷害、採集量、建造速度',
@@ -102,7 +104,7 @@ function UnitView({ world, u }: { world: World; u: Unit }) {
         <span>擊殺 {u.kills}</span>
         <span className="muted">出生 {formatTime(u.bornAt)}</span>
       </div>
-      <div className="iv-doing">正在：{describeAction(world, u)}</div>
+      <div className="iv-doing">{u.monster ? '守護巢穴中的中立怪物' : `正在：${describeAction(world, u)}`}</div>
       <div className="iv-status">
         <span className={u.sick ? 'sick-badge' : ''}>{u.sick ? '☣ 患病中（工作減半）' : world.tick < u.immuneUntil ? '🛡 剛康復，暫時免疫' : '健康'}</span>
         <span>染病風險 ×{infectionRisk(world, u).toFixed(2)}</span>
@@ -110,6 +112,11 @@ function UnitView({ world, u }: { world: World; u: Unit }) {
         <span className={u.loyalty < 50 ? 'starve-badge' : ''} title="越低越容易被敵方外交官策反">
           忠誠 {Math.round(u.loyalty)}
         </span>
+        {Number.isFinite(lifespanOf(u)) && (
+          <span title="蟲族壽命短，到時間會老死">
+            壽命剩 {Math.max(0, Math.round((lifespanOf(u) - (world.tick - u.bornAt)) / TICKS_PER_SECOND))} 秒
+          </span>
+        )}
       </div>
 
       <div className="attrs">
@@ -157,6 +164,22 @@ function UnitView({ world, u }: { world: World; u: Unit }) {
   );
 }
 
+function LairInfo({ world, buildingId }: { world: World; buildingId: number }) {
+  const lair = lairOfBuilding(world, buildingId);
+  if (!lair) return null;
+  const guards = guardiansOf(world, lair);
+  return (
+    <div className="iv-gear">
+      <div>
+        <b>{lair.name}</b>
+      </div>
+      <div>守衛：{MONSTERS[lair.monster].name} × {guards.length}（共 {Math.ceil(guards.reduce((s, g) => s + g.hp, 0))} 生命）</div>
+      <div className="fc-best">寶藏：{treasureLabel(lair.treasure)}</div>
+      <div className="muted">周圍的遠古礦脈在攻陷前無人敢採</div>
+    </div>
+  );
+}
+
 function BuildingView({ world, b }: { world: World; b: Building }) {
   const f = world.factions[b.factionId];
   const def = BUILDING_DEFS[b.type];
@@ -178,6 +201,7 @@ function BuildingView({ world, b }: { world: World; b: Building }) {
         )}
       </div>
       <p>{def.desc}</p>
+      {b.type === 'lair' && <LairInfo world={world} buildingId={b.id} />}
       {b.type === 'hq' && (
         <div className="iv-gear">
           <div>軍械庫（{f.armory.length}）</div>

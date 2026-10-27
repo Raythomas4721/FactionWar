@@ -14,7 +14,8 @@ const costText = (cost: Partial<Resources>) =>
 
 /** 玩家接管陣營後的指揮面板：透過和 AI 相同的指令佇列下令 */
 export function FactionCommands({ world, f }: { world: World; f: Faction }) {
-  const others = world.factions.filter((e) => e.id !== f.id && e.alive);
+  const others = world.factions.filter((e) => e.id !== f.id && e.alive && !e.neutral);
+  const beast = world.factions.find((e) => e.neutral && e.alive);
   const popFull = popOf(world, f.id) >= popCapOf(world, f.id);
 
   return (
@@ -27,6 +28,15 @@ export function FactionCommands({ world, f }: { world: World; f: Faction }) {
         >
           🛡 防守
         </button>
+        {beast && (
+          <button
+            className={f.stance === 'attack' && f.targetFaction === beast.id ? 'active attack' : ''}
+            title="派兵討伐中立怪物的巢穴，奪取寶藏"
+            onClick={() => issueCommand(world, f.id, { type: 'setStance', stance: 'attack', target: beast.id })}
+          >
+            🏆 討伐巢穴
+          </button>
+        )}
         {others.map((e) => (
           <button
             key={e.id}

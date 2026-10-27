@@ -41,9 +41,17 @@ export const TROOP_DEFS: Record<Troop, TroopDef> = {
     id: 'ranger', name: '林地伏兵', races: ['elf'], tech: 1, extraFood: 0, upkeep: 1, speedMult: 1, weapon: 'ranged',
     desc: '站在森林裡會隱形，敵人要很靠近才看得見；從暗處放箭傷害 ×1.4',
   },
+  ghoul: {
+    id: 'ghoul', name: '食屍鬼', races: ['undead'], tech: 1, extraFood: 0, upkeep: 1, speedMult: 1.1, weapon: 'melee',
+    desc: '撕咬敵人時吸取生命（造成傷害的 40% 回復自己）',
+  },
+  stinger: {
+    id: 'stinger', name: '毒刺蟲', races: ['insect'], tech: 1, extraFood: 0, upkeep: 1, speedMult: 1.1, weapon: 'melee',
+    desc: '毒刺命中時可能讓敵人染病',
+  },
 };
 
-export const TROOP_ORDER: Troop[] = ['soldier', 'spearman', 'cavalry', 'sapper', 'ranger'];
+export const TROOP_ORDER: Troop[] = ['soldier', 'spearman', 'cavalry', 'sapper', 'ranger', 'ghoul', 'stinger'];
 
 /** 衝鋒：至少要奔跑這麼多格 */
 export const CHARGE_DISTANCE = 3;
@@ -79,4 +87,12 @@ export const TROOP_MIX: Record<RaceId, Partial<Record<Troop, number>>> = {
   orc: { cavalry: 0.25, spearman: 0.1 },
   elf: { ranger: 0.3, spearman: 0.15 },
   dwarf: { sapper: 0.2, spearman: 0.25 },
+  undead: { ghoul: 0.35, spearman: 0.1 },
+  insect: { stinger: 0.4 },
+  beast: {},
 };
+
+/** 食屍鬼吸血比例 */
+export const LIFESTEAL = 0.4;
+/** 毒刺蟲命中後的染病機率（再乘上目標的染病風險） */
+export const STING_INFECT = 0.25;

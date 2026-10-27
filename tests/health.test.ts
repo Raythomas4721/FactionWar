@@ -4,7 +4,8 @@ import { RACES } from '../src/sim/races';
 import { diseaseResistOf } from '../src/sim/stats';
 import { infect, infectionRisk, updateDisease, updateHunger, upkeepOf } from '../src/sim/systems/health';
 import { centerOf, hqOf } from '../src/sim/util';
-import { createWorld, step } from '../src/sim/world';
+import { step } from '../src/sim/world';
+import { createWorld } from './helpers';
 
 describe('疾病', () => {
   it('體質越高越不容易生病', () => {

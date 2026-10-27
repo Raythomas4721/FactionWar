@@ -7,7 +7,7 @@ import { dist } from '../math';
 import { RACES } from '../races';
 import type { BuildingType, Command, Faction, Role, Troop, Unit, World } from '../types';
 import {
-  areHostile, canAfford, centerOf, enemiesNear, factionBuildings, factionUnits, hasCompleted, hqOf, popCapOf,
+  areHostile, canAfford, centerOf, contenders, enemiesNear, factionBuildings, factionUnits, hasCompleted, hqOf, popCapOf,
 } from '../util';
 import { isBuildingUnlocked } from '../systems/building';
 import { pickCraftDef } from '../systems/crafting';
@@ -15,6 +15,7 @@ import { unitCost } from '../commands';
 import { peaceTicksOf } from '../rules';
 import { hasCommonEnemy, raceIsDiplomatic } from '../systems/diplomacy';
 import { getTreaty } from '../systems/treaties';
+import { activeLairs, guardiansOf } from '../systems/neutral';
 
 const DIPLOMACY_THINK_TICKS = 600;
 
@@ -54,13 +55,20 @@ function decideStance(world: World, f: Faction, warriors: Unit[], cmds: Command[
   if (f.stance === 'attack') {
     const targetValid =
       f.targetFaction !== null && world.factions[f.targetFaction].alive && areHostile(world, f.id, f.targetFaction);
-    if (warriors.length < 3 || threatened || !targetValid) {
+    // 討伐巢穴時，剩下的巢穴都打不贏就收兵（別去送死給巨龍）
+    const lairHopeless = targetValid && world.factions[f.targetFaction!].neutral && pickLairTarget(world, warriors, hc) === null;
+    if (warriors.length < 3 || threatened || !targetValid || lairHopeless) {
       cmds.push({ type: 'setStance', stance: 'defend', target: null });
     }
     return;
   }
 
-  if (world.tick < peaceTicksOf(world.rules)) return;
+  // 中立巢穴：兵力是守衛的兩倍以上就去討伐（休戰期也可以）
+  const lairTarget = pickLairTarget(world, warriors, hc);
+  if (world.tick < peaceTicksOf(world.rules)) {
+    if (lairTarget && !threatened) cmds.push({ type: 'setStance', stance: 'attack', target: lairTarget });
+    return;
+  }
   const armed = warriors.filter((w) => w.weapon).length;
   const ready =
     (warriors.length >= 6 && armed >= warriors.length * 0.7) ||
@@ -90,7 +98,25 @@ function decideStance(world: World, f: Faction, warriors: Unit[], cmds: Command[
       target = e;
     }
   }
-  if (target) cmds.push({ type: 'setStance', stance: 'attack', target: target.id });
+  // 有打得贏的巢穴時，有時會先去奪寶，而不是直接打其他陣營
+  if (lairTarget !== null && (!target || world.rng.chance(0.4))) {
+    cmds.push({ type: 'setStance', stance: 'attack', target: lairTarget });
+  } else if (target) {
+    cmds.push({ type: 'setStance', stance: 'attack', target: target.id });
+  }
+}
+
+/** 有沒有打得贏的巢穴；有的話回傳中立陣營 id */
+function pickLairTarget(world: World, warriors: Unit[], hc: { x: number; y: number }): number | null {
+  const beast = world.factions.find((n) => n.neutral && n.alive);
+  if (!beast) return null;
+  const power = warriors.reduce((s, w) => s + w.hp, 0);
+  for (const lair of activeLairs(world)) {
+    const guard = guardiansOf(world, lair).reduce((s, g) => s + g.hp, 0);
+    const near = dist(hc.x, hc.y, lair.center.x, lair.center.y) < 30;
+    if (near && warriors.length >= 6 && power > guard * 2.2) return beast.id;
+  }
+  return null;
 }
 
 /**
@@ -98,11 +124,11 @@ function decideStance(world: World, f: Faction, warriors: Unit[], cmds: Command[
  * 打不過就求和、有共同敵人就結盟、自己夠強又看對方不順眼就撕毀條約。
  */
 function decideDiplomacy(world: World, f: Faction, units: Unit[], cmds: Command[]): void {
-  if (f.playerControlled || world.tick < f.nextDiplomacyAt) return;
+  if (f.playerControlled || RACES[f.race].noDiplomacy || world.tick < f.nextDiplomacyAt) return;
   f.nextDiplomacyAt = world.tick + DIPLOMACY_THINK_TICKS;
   const strength = (id: number) => factionUnits(world, id).filter((u) => u.role === 'warrior').length;
   const mine = strength(f.id);
-  const others = world.factions.filter((o) => o.alive && o.id !== f.id);
+  const others = contenders(world).filter((o) => o.id !== f.id);
   const enemies = others.filter((o) => areHostile(world, f.id, o.id));
   const partners = others.filter((o) => !areHostile(world, f.id, o.id));
 
@@ -150,7 +176,7 @@ function decideTraining(world: World, f: Faction, units: Unit[], hasForge: boole
   let role: Role;
   if (workers < 6) role = 'worker';
   else if (smiths < (hasForge ? 2 : 1)) role = 'smith';
-  else if (f.tech >= 1 && diplomats < (raceIsDiplomatic(f) ? 2 : 1)) role = 'diplomat';
+  else if (f.tech >= 1 && !RACES[f.race].noDiplomacy && diplomats < (raceIsDiplomatic(f) ? 2 : 1)) role = 'diplomat';
   else if (workers < 10 && workers < warriors * 0.8) role = 'worker';
   else role = 'warrior';
 

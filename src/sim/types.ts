@@ -1,17 +1,20 @@
 import type { Rng } from './rng';
 import type { WorldRules } from './rules';
 import type { ItemDef } from './items';
+import type { Lair, MonsterKind, RelicId } from './lairs';
 
-export type RaceId = 'orc' | 'elf' | 'dwarf' | 'human';
+/** beast 為中立怪物，不會出現在參戰種族中 */
+export type RaceId = 'orc' | 'elf' | 'dwarf' | 'human' | 'undead' | 'insect' | 'beast';
 export type AttrKey = 'str' | 'agi' | 'int' | 'con' | 'cha';
 export type Attributes = Record<AttrKey, number>;
 export type ResourceKind = 'wood' | 'stone' | 'ore' | 'food';
 export type Resources = Record<ResourceKind, number>;
 export type Role = 'worker' | 'warrior' | 'smith' | 'diplomat';
 /** 戰士的兵種 */
-export type Troop = 'soldier' | 'spearman' | 'cavalry' | 'sapper' | 'ranger';
+export type Troop = 'soldier' | 'spearman' | 'cavalry' | 'sapper' | 'ranger' | 'ghoul' | 'stinger';
 export type TileKind = 'grass' | 'water' | 'forest' | 'rock' | 'ore' | 'berries';
-export type BuildingType = 'hq' | 'house' | 'farm' | 'forge' | 'library' | 'barracks' | 'tower' | 'infirmary' | 'stable';
+export type BuildingType =
+  | 'hq' | 'house' | 'farm' | 'forge' | 'library' | 'barracks' | 'tower' | 'infirmary' | 'stable' | 'lair';
 export type Stance = 'defend' | 'attack';
 /** 兩個陣營之間的外交狀態 */
 export type Treaty = 'war' | 'peace' | 'alliance';
@@ -98,6 +101,9 @@ export interface Unit {
   hunger: number;
   /** 忠誠度 0~100：挨餓、生病、士氣低落會下降，越低越容易被策反 */
   loyalty: number;
+  /** 中立怪物的種類與守護的家 */
+  monster?: MonsterKind;
+  home?: Point;
 }
 
 export interface Building {
@@ -174,10 +180,16 @@ export interface Faction {
   playerControlled: boolean;
   /** 糧食不夠付這個 tick 的口糧 */
   starving: boolean;
+  /** 中立怪物陣營：沒有營帳、不參與勝負與外交 */
+  neutral: boolean;
+  /** 攻陷巢穴獲得的秘術 */
+  relics: RelicId[];
+  /** 賢者秘藥帶來的屬性加成（現有與之後出生的族人都有） */
+  attrBonus: Attributes;
 }
 
 export type EventKind =
-  | 'combat' | 'craft' | 'invention' | 'build' | 'tech' | 'faction' | 'god' | 'health' | 'diplomacy' | 'info';
+  | 'combat' | 'craft' | 'invention' | 'build' | 'tech' | 'faction' | 'god' | 'health' | 'diplomacy' | 'lair' | 'info';
 
 export interface GameEvent {
   tick: number;
@@ -227,4 +239,6 @@ export interface World {
   allianceSince: number | null;
   /** 神力值，施展上帝之手會消耗 */
   mana: number;
+  /** 中立怪物守護的巢穴 */
+  lairs: Lair[];
 }

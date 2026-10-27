@@ -3,7 +3,8 @@ import { issueCommand } from '../src/sim/commands';
 import { runGame } from '../src/sim/headless';
 import { findPath } from '../src/sim/systems/movement';
 import { placeBuilding } from '../src/sim/systems/building';
-import { createBlankWorld, createWorld, step } from '../src/sim/world';
+import { createBlankWorld, step } from '../src/sim/world';
+import { createWorld } from './helpers';
 
 function snapshot(seed: number, ticks: number) {
   const w = createWorld(seed);

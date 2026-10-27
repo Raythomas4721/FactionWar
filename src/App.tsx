@@ -227,6 +227,7 @@ function Legend() {
       <span><i className="lg-square" />鐵匠</span>
       <span><i className="lg-triangle" />外交官</span>
       <span><i className="lg-ellipse" />騎兵</span>
+      <span><i className="lg-monster" />中立怪物（巢穴上標示寶藏：秘／寶／圖／龍）</span>
       <span><i className="lg-tile" style={{ background: '#3f7a3a' }} />森林</span>
       <span><i className="lg-tile" style={{ background: '#8a8f96' }} />石頭</span>
       <span><i className="lg-tile" style={{ background: '#e0904a' }} />鐵礦</span>

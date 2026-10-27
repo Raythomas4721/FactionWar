@@ -587,6 +587,48 @@ canvas.casting {
   font-weight: bold;
 }
 
+.fc-relics {
+  font-size: 12px;
+  color: #ffcf7a;
+}
+.lg-monster {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  background: #7a2420;
+  border: 1.5px solid #ff8a6a;
+  transform: rotate(45deg);
+}
+
+/* 參戰種族 */
+.race-picks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 6px;
+}
+.race-pick {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 6px;
+  align-items: center;
+  border: 1px solid;
+  border-radius: 6px;
+  padding: 4px 6px;
+  cursor: pointer;
+  opacity: 0.75;
+}
+.race-pick.on {
+  opacity: 1;
+  background: var(--panel-2);
+}
+.race-pick input {
+  width: auto;
+}
+.race-pick small {
+  grid-column: 1 / -1;
+  font-size: 11px;
+}
+
 /* 外交 */
 .relations {
   display: flex;

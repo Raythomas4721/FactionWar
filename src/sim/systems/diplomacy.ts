@@ -1,7 +1,7 @@
 import { clamp, dist } from '../math';
 import { RACES, RIVALRY } from '../races';
 import type { Faction, Proposal, Unit, World } from '../types';
-import { areHostile, centerOf, factionUnits, hqOf, isTargetable, logEvent, unitLabel } from '../util';
+import { areHostile, centerOf, contenders, factionUnits, hqOf, isTargetable, logEvent, unitLabel } from '../util';
 import { handleDeath } from './combat';
 import { cancelCraft } from './crafting';
 import { moveTo } from './movement';
@@ -19,7 +19,7 @@ const warriorsOf = (world: World, f: Faction) => factionUnits(world, f.id).filte
 /** 有沒有雙方都在交戰的第三方（共同敵人） */
 export function hasCommonEnemy(world: World, a: number, b: number): boolean {
   return world.factions.some(
-    (z) => z.alive && z.id !== a && z.id !== b && areHostile(world, a, z.id) && areHostile(world, b, z.id),
+    (z) => z.alive && !z.neutral && z.id !== a && z.id !== b && areHostile(world, a, z.id) && areHostile(world, b, z.id),
   );
 }
 
@@ -30,10 +30,12 @@ export function hasCommonEnemy(world: World, a: number, b: number): boolean {
  * 魅力高的人天生忠誠；挨餓、生病、士氣低落、陣營節節敗退都會讓人動搖。
  */
 export function loyaltyTarget(world: World, u: Unit): number {
+  if (RACES[u.race].unswayable) return 100;
   const f = world.factions[u.factionId];
+  const iron = f.relics.includes('iron') ? 25 : 0;
   const momentum = clamp((f.stats.kills - f.stats.deaths) / 5, -15, 15);
   return clamp(
-    50 + u.attrs.cha * 2 - u.hunger * 40 - (u.sick ? 10 : 0) - (u.morale < 30 ? 15 : 0) + momentum,
+    50 + u.attrs.cha * 2 - u.hunger * 40 - (u.sick ? 10 : 0) - (u.morale < 30 ? 15 : 0) + momentum + iron,
     0,
     100,
   );
@@ -50,6 +52,7 @@ export function updateLoyalty(world: World): void {
 
 /** 說服成功率：外交官的魅力（其次智慧）對上目標的忠誠度 */
 export function persuadeChance(world: World, envoy: Unit, target: Unit): number {
+  if (RACES[target.race].unswayable) return 0;
   const p = 0.25 + (envoy.attrs.cha - 10) * 0.03 + (envoy.attrs.int - 10) * 0.01 - (target.loyalty - 50) * 0.012;
   return clamp(p * world.rules.subvertMult, 0, 0.6);
 }
@@ -117,6 +120,7 @@ export function subvertTick(world: World, u: Unit, targetId: number): boolean {
 
 /** 對方接受提議的機率 */
 export function proposalChance(world: World, from: Faction, to: Faction, proposal: Proposal, envoy: Unit): number {
+  if (RACES[from.race].noDiplomacy || RACES[to.race].noDiplomacy) return 0;
   let p = 0.25 + (envoy.attrs.cha - 10) * 0.04 + (envoy.attrs.int - 10) * 0.01 + to.relations[from.id] / 200;
   const common = hasCommonEnemy(world, from.id, to.id);
   if (proposal === 'peace') {
@@ -197,7 +201,7 @@ export function declareWar(world: World, f: Faction, target: number): void {
 /** 關係值回歸種族宿怨、條約帶來好感、神諭停戰到期、最後兩強必有一戰 */
 export function updateDiplomacy(world: World): void {
   if (world.tick % DIPLOMACY_INTERVAL !== 0) return;
-  const alive = world.factions.filter((f) => f.alive);
+  const alive = contenders(world);
 
   for (const a of alive) {
     for (const b of alive) {
@@ -232,7 +236,7 @@ export function updateDiplomacy(world: World): void {
 /** 所有存活陣營彼此都是同盟 */
 export function isAllianceVictory(world: World): boolean {
   if (!world.rules.allianceVictory) return false;
-  const alive = world.factions.filter((f) => f.alive);
+  const alive = contenders(world);
   if (alive.length < 2) return false;
   return alive.every((a) => alive.every((b) => getTreaty(world, a.id, b.id) === 'alliance'));
 }

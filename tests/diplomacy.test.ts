@@ -6,7 +6,8 @@ import {
 } from '../src/sim/systems/diplomacy';
 import { getTreaty, setTreaty } from '../src/sim/systems/treaties';
 import { areHostile, centerOf, hqOf, nearestEnemyUnit, spawnUnit } from '../src/sim/util';
-import { ALLIANCE_HOLD_TICKS, createWorld, step } from '../src/sim/world';
+import { ALLIANCE_HOLD_TICKS, step } from '../src/sim/world';
+import { createWorld } from './helpers';
 
 describe('外交狀態', () => {
   it('開局所有陣營互相交戰，和平或同盟後就不再敵對', () => {
@@ -125,7 +126,7 @@ describe('外交神力', () => {
     const f = w.factions[0];
     const c = centerOf(hqOf(w, f)!);
     expect(castPower(w, 'truce', c.x, c.y).ok).toBe(true);
-    for (const o of w.factions) if (o.id !== f.id) expect(getTreaty(w, f.id, o.id)).toBe('peace');
+    for (const o of w.factions) if (o.id !== f.id && !o.neutral) expect(getTreaty(w, f.id, o.id)).toBe('peace');
     w.tick = w.truceUntil[f.id][1] - 1;
     step(w);
     step(w);

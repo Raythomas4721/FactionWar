@@ -200,6 +200,11 @@ function civilianOptions(world: World, u: Unit, f: Faction, add: (s: number, a: 
 
   const want = pickGatherKind(f, u);
   if (u.carrying && u.carrying.amount > 0 && u.carrying.kind !== want) add(55, { type: 'deliver' });
+  // 正在送貨就先送完，不必重新找資源
+  if (u.action.type === 'deliver' && u.carrying) {
+    add(50, u.action);
+    return;
+  }
 
   const cur = u.action;
   if (cur.type === 'gather' && cur.kind === want) {

@@ -2,10 +2,11 @@ import { BUILDING_DEFS } from '../sim/buildings';
 import { MAX_TECH, TECH_THRESHOLDS, TICKS_PER_SECOND } from '../sim/constants';
 import { eatersOf, upkeepOf } from '../sim/systems/health';
 import { TREATY_ICONS, TREATY_NAMES, getTreaty } from '../sim/systems/treaties';
-import { RACES } from '../sim/races';
+import { ATTR_KEYS, ATTR_LABELS, RACES } from '../sim/races';
 import type { BuildingType, Faction, Resources, World } from '../sim/types';
 import { RESOURCE_NAMES, factionBuildings, factionUnits, popCapOf } from '../sim/util';
 import { score } from '../sim/world';
+import { RELICS } from '../sim/lairs';
 import { FactionCommands } from './FactionCommands';
 
 const RES_ORDER: (keyof Resources)[] = ['food', 'wood', 'stone', 'ore'];
@@ -14,7 +15,7 @@ const SHOWN_BUILDINGS: BuildingType[] = ['house', 'farm', 'forge', 'library', 'b
 export function FactionPanel({ world }: { world: World }) {
   return (
     <section className="factions">
-      {world.factions.map((f) => (
+      {world.factions.filter((f) => !f.neutral).map((f) => (
         <FactionCard key={f.id} world={world} f={f} />
       ))}
     </section>
@@ -134,6 +135,19 @@ function FactionCard({ world, f }: { world: World; f: Faction }) {
         <span>招降 {f.stats.recruited} · 叛逃 {f.stats.defected} · 締約 {f.stats.treaties} · 發明 {f.stats.inventions}</span>
       </div>
       {f.stats.bestItem && <div className="fc-best">最佳裝備：{f.stats.bestItem.label}</div>}
+      {f.relics.length > 0 && (
+        <div className="fc-relics" title={f.relics.map((r) => `${RELICS[r].name}：${RELICS[r].desc}`).join('\n')}>
+          🏆 秘術：{f.relics.map((r) => RELICS[r].name).join('、')}
+        </div>
+      )}
+      {ATTR_KEYS.some((k) => f.attrBonus[k] > 0) && (
+        <div className="fc-relics">
+          💊 秘藥：
+          {ATTR_KEYS.filter((k) => f.attrBonus[k] > 0)
+            .map((k) => `${ATTR_LABELS[k]} +${f.attrBonus[k]}`)
+            .join('、')}
+        </div>
+      )}
       {f.blueprints.length > 0 && (
         <div className="fc-blueprints" title={f.blueprints.map((b) => `${b.name}（威力 ×${b.powerMult?.toFixed(2)}）`).join('\n')}>
           💡 藍圖 {f.blueprints.length}：{f.blueprints.map((b) => b.name).join('、')}

@@ -2,11 +2,12 @@ import { BUILDING_SIZE } from './constants';
 import { dist } from './math';
 import type { Faction, Resources, TileKind, World } from './types';
 import {
-  centerOf, distToBuilding, hasCompleted, hqOf, logEvent, spawnUnit, tileAt, unitLabel,
+  centerOf, contenders, distToBuilding, hasCompleted, hqOf, logEvent, spawnUnit, tileAt, unitLabel,
 } from './util';
 import { damageBuilding, damageUnit } from './systems/combat';
 import { pickCraftDef } from './systems/crafting';
 import { infect, infectionRisk } from './systems/health';
+import { RACES } from './races';
 import { adjustRelation, getTreaty, setTreaty } from './systems/treaties';
 
 /** 神諭停戰持續 3 分鐘（遊戲時間） */
@@ -106,8 +107,12 @@ function apply(world: World, def: PowerDef, x: number, y: number): CastResult {
       return { ok: true, message: `天雷劈落！${parts.join('，')}` };
     }
     case 'bless': {
-      const blessed = world.units.filter((u) => u.hp > 0 && dist(u.x, u.y, x, y) <= def.radius);
-      if (!blessed.length) return { ok: false, message: '範圍內沒有小人' };
+      const inRange = world.units.filter((u) => u.hp > 0 && dist(u.x, u.y, x, y) <= def.radius);
+      if (!inRange.length) return { ok: false, message: '範圍內沒有小人' };
+      const burned = inRange.filter((u) => RACES[u.race].unholy);
+      for (const u of burned) damageUnit(world, u, 30, -1, '聖光');
+      const blessed = inRange.filter((u) => !RACES[u.race].unholy);
+      if (!blessed.length) return { ok: true, message: `聖光灼燒了 ${burned.length} 個不潔之物` };
       for (const u of blessed) {
         u.hp = u.maxHp;
         u.morale = 100;
@@ -118,7 +123,8 @@ function apply(world: World, def: PowerDef, x: number, y: number): CastResult {
         }
       }
       const names = blessed.slice(0, 3).map(unitLabel).join('、');
-      return { ok: true, message: `神聖祝福降臨在 ${names}${blessed.length > 3 ? ` 等 ${blessed.length} 人` : ''} 身上` };
+      const burnNote = burned.length ? `；聖光灼燒了 ${burned.length} 個不潔之物` : '';
+      return { ok: true, message: `神聖祝福降臨在 ${names}${blessed.length > 3 ? ` 等 ${blessed.length} 人` : ''} 身上${burnNote}` };
     }
     case 'plague': {
       const targets = world.units.filter((u) => u.hp > 0 && !u.sick && dist(u.x, u.y, x, y) <= def.radius);
@@ -147,7 +153,7 @@ function apply(world: World, def: PowerDef, x: number, y: number): CastResult {
     case 'truce': {
       const f = nearestFaction(world, x, y);
       if (!f) return { ok: false, message: '沒有存活的陣營' };
-      const foes = world.factions.filter((o) => o.alive && o.id !== f.id && getTreaty(world, f.id, o.id) === 'war');
+      const foes = contenders(world).filter((o) => o.id !== f.id && getTreaty(world, f.id, o.id) === 'war');
       if (!foes.length) return { ok: false, message: `${f.name} 目前沒有交戰對象` };
       for (const o of foes) setTreaty(world, f.id, o.id, 'peace', world.tick + TRUCE_TICKS);
       return { ok: true, message: `神諭降下：${f.name} 與 ${foes.map((o) => o.name).join('、')} 停戰 3 分鐘` };
@@ -155,7 +161,7 @@ function apply(world: World, def: PowerDef, x: number, y: number): CastResult {
     case 'discord': {
       const f = nearestFaction(world, x, y);
       if (!f) return { ok: false, message: '沒有存活的陣營' };
-      const others = world.factions.filter((o) => o.alive && o.id !== f.id);
+      const others = contenders(world).filter((o) => o.id !== f.id);
       const broken = others.filter((o) => getTreaty(world, f.id, o.id) !== 'war');
       for (const o of broken) setTreaty(world, f.id, o.id, 'war');
       for (const o of others) {

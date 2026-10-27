@@ -4,6 +4,7 @@ import { carryOf, gatherRateOf } from '../stats';
 import type { Point, ResourceKind, TileKind, Unit, World } from '../types';
 import { areHostile, centerOf, hqOf, sickMult } from '../util';
 import { moveTo } from './movement';
+import { hasRelic, inLairDanger } from './neutral';
 
 export const RESOURCE_TILE: Record<ResourceKind, TileKind> = {
   wood: 'forest', stone: 'rock', ore: 'ore', food: 'berries',
@@ -11,6 +12,25 @@ export const RESOURCE_TILE: Record<ResourceKind, TileKind> = {
 
 /** 不去敵方營帳附近採集 */
 const ENEMY_HQ_AVOID = 9;
+
+// 各種地形格子的索引快取；地形改變（資源採完、造林）時才重建
+let cachedWorld: World | null = null;
+let cachedVersion = -1;
+let tilesByKind = new Map<TileKind, number[]>();
+
+function tilesOfKind(world: World, kind: TileKind): number[] {
+  if (cachedWorld !== world || cachedVersion !== world.terrainVersion) {
+    tilesByKind = new Map();
+    world.tiles.forEach((t, i) => {
+      const list = tilesByKind.get(t.kind);
+      if (list) list.push(i);
+      else tilesByKind.set(t.kind, [i]);
+    });
+    cachedWorld = world;
+    cachedVersion = world.terrainVersion;
+  }
+  return tilesByKind.get(kind) ?? [];
+}
 
 export function findNearestResource(world: World, u: Unit, kind: ResourceKind): Point | null {
   const tileKind = RESOURCE_TILE[kind];
@@ -20,17 +40,18 @@ export function findNearestResource(world: World, u: Unit, kind: ResourceKind): 
     .filter((b) => !!b)
     .map((b) => centerOf(b!));
   let best: Point | null = null;
-  let bestD = Infinity;
-  for (let y = 0; y < world.height; y++) {
-    for (let x = 0; x < world.width; x++) {
-      const t = world.tiles[y * world.width + x];
-      if (t.kind !== tileKind || t.amount <= 0) continue;
-      const d = dist(u.x, u.y, x + 0.5, y + 0.5);
-      if (d >= bestD) continue;
-      if (enemyHqs.some((c) => dist(c.x, c.y, x + 0.5, y + 0.5) < ENEMY_HQ_AVOID)) continue;
-      bestD = d;
-      best = { x, y };
-    }
+  let bestD2 = Infinity;
+  for (const i of tilesOfKind(world, tileKind)) {
+    const t = world.tiles[i];
+    if (t.kind !== tileKind || t.amount <= 0) continue;
+    const cx = (i % world.width) + 0.5;
+    const cy = Math.floor(i / world.width) + 0.5;
+    const d2 = (u.x - cx) ** 2 + (u.y - cy) ** 2;
+    if (d2 >= bestD2) continue;
+    if (enemyHqs.some((c) => dist(c.x, c.y, cx, cy) < ENEMY_HQ_AVOID)) continue;
+    if (inLairDanger(world, cx, cy)) continue;
+    bestD2 = d2;
+    best = { x: cx - 0.5, y: cy - 0.5 };
   }
   return best;
 }
@@ -44,7 +65,8 @@ export function gatherTick(world: World, u: Unit, kind: ResourceKind, tx: number
   const cap = carryOf(u.attrs);
   if (!u.carrying || u.carrying.kind !== kind) u.carrying = { kind, amount: 0 };
   const rate =
-    gatherRateOf(u.attrs, kind === 'food') * (kind === 'food' ? RACES[u.race].forageMult : 1) * world.rules.gatherMult * sickMult(u);
+    gatherRateOf(u.attrs, kind === 'food') * (kind === 'food' ? RACES[u.race].forageMult : 1) * world.rules.gatherMult * sickMult(u) *
+    (hasRelic(world, u.factionId, 'harvest') ? 1.4 : 1);
   const amt = Math.min(rate, tile.amount, cap - u.carrying.amount);
   u.carrying.amount += amt;
   tile.amount -= amt;

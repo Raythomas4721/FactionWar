@@ -11,7 +11,10 @@ interface Props {
 }
 
 export function RulesPanel({ rules, active, onChange, onNewGame, onClose }: Props) {
-  const pending = RULE_DEFS.some((d) => !d.live && rules[d.key] !== active[d.key]);
+  const pending =
+    RULE_DEFS.some((d) => !d.live && rules[d.key] !== active[d.key]) ||
+    rules.raceSelection.join() !== active.raceSelection.join() ||
+    rules.neutralLairs !== active.neutralLairs;
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal panel" onClick={(e) => e.stopPropagation()}>
@@ -39,6 +42,36 @@ export function RulesPanel({ rules, active, onChange, onNewGame, onClose }: Prop
               <span className="rule-val">{d.format(rules[d.key])}</span>
             </label>
           ))}
+        </div>
+
+        <h3>
+          參戰種族<em className="new-game-tag">新局</em>
+        </h3>
+        <p className="muted">最多選 4 族；沒選滿的由六族中隨機補上（全不選＝每局隨機）。</p>
+        <div className="race-picks">
+          {RACE_ORDER.map((race) => {
+            const on = rules.raceSelection.includes(race);
+            const full = rules.raceSelection.length >= 4;
+            return (
+              <label key={race} className={`race-pick ${on ? 'on' : ''}`} style={{ borderColor: RACES[race].color }}>
+                <input
+                  type="checkbox"
+                  checked={on}
+                  disabled={!on && full}
+                  onChange={(e) =>
+                    onChange({
+                      ...rules,
+                      raceSelection: e.target.checked
+                        ? [...rules.raceSelection, race]
+                        : rules.raceSelection.filter((r) => r !== race),
+                    })
+                  }
+                />
+                <span style={{ color: RACES[race].color }}>{RACES[race].factionName}</span>
+                <small className="muted">{RACES[race].traits[0]}</small>
+              </label>
+            );
+          })}
         </div>
 
         <h3>種族天賦</h3>
@@ -79,6 +112,15 @@ export function RulesPanel({ rules, active, onChange, onNewGame, onClose }: Prop
             onChange={(e) => onChange({ ...rules, allianceVictory: e.target.checked })}
           />
           所有存活陣營結盟時，算「結盟共治」勝利
+        </label>
+        <label className="rule-check">
+          <input
+            type="checkbox"
+            checked={rules.neutralLairs}
+            onChange={(e) => onChange({ ...rules, neutralLairs: e.target.checked })}
+          />
+          中立巢穴：怪物守護遠古礦脈、神器、秘術與上古圖紙
+          <em className="new-game-tag">新局</em>
         </label>
 
         <div className="modal-actions">

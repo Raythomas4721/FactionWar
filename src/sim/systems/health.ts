@@ -23,7 +23,8 @@ const INFIRMARY_RADIUS = 4;
 /** 這名小人實際的染病機率倍率：體質 × 種族 × 世界法則 */
 export function infectionRisk(world: World, u: Unit): number {
   const blessed = hasTrait(u.armor, 'blessed') ? 0.5 : 1;
-  return diseaseResistOf(u.attrs) * RACES[u.race].diseaseMult * world.rules.diseaseMult * blessed;
+  const vitality = world.factions[u.factionId]?.relics.includes('vitality') ? 0.4 : 1;
+  return diseaseResistOf(u.attrs) * RACES[u.race].diseaseMult * world.rules.diseaseMult * blessed * vitality;
 }
 
 /** 要吃飯的「人份」：騎兵連坐騎算 1.5 份 */
@@ -52,6 +53,21 @@ export function infect(world: World, u: Unit): boolean {
   u.sick = true;
   world.factions[u.factionId].stats.infections++;
   return true;
+}
+
+/** 有壽命的種族（蟲族）到時間就會老死；每隻的壽命略有不同 */
+export function lifespanOf(u: Unit): number {
+  const base = RACES[u.race].lifespan;
+  return base > 0 ? base + ((u.id * 97) % 600) : Infinity;
+}
+
+export function updateAging(world: World): void {
+  for (const u of world.units) {
+    if (u.hp > 0 && world.tick - u.bornAt > lifespanOf(u)) {
+      u.hp = 0;
+      handleDeath(world, u);
+    }
+  }
 }
 
 /** 每個陣營先付口糧；付不出來的陣營全員飢餓度上升 */

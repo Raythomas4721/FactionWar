@@ -7,7 +7,8 @@ import { tunnelTick, updateStealth } from '../src/sim/systems/troopActions';
 import { createBuilding } from '../src/sim/systems/building';
 import { CHARGE_DISTANCE, REVEAL_RADIUS, canTrainTroop } from '../src/sim/troops';
 import { hqOf, isTargetable, nearestEnemyUnit, spawnUnit } from '../src/sim/util';
-import { createWorld, step } from '../src/sim/world';
+import { step } from '../src/sim/world';
+import { createWorld } from './helpers';
 
 const factionOf = (w: ReturnType<typeof createWorld>, race: string) => w.factions.find((f) => f.race === race)!;
 

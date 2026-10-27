@@ -23,12 +23,16 @@ export interface WorldRules {
   inventionMult: number;
   /** 所有存活陣營都結盟時，算結盟共治勝利 */
   allianceVictory: boolean;
+  /** 地圖上有中立怪物守護寶藏的巢穴（新局生效） */
+  neutralLairs: boolean;
   /** 地圖資源蘊藏量倍率（新局生效） */
   resourceRichness: number;
   /** 開局科技等級（新局生效） */
   startTech: number;
   /** 各種族新生小人的屬性倍率 */
   racePower: Record<RaceId, number>;
+  /** 指定參戰種族（最多 4 個），不足的隨機補上（新局生效） */
+  raceSelection: RaceId[];
   /** 神力無限 */
   infiniteMana: boolean;
 }
@@ -44,13 +48,18 @@ export const DEFAULT_RULES: WorldRules = {
   subvertMult: 1,
   inventionMult: 1,
   allianceVictory: true,
+  neutralLairs: true,
   resourceRichness: 1,
   startTech: 0,
-  racePower: { orc: 1, elf: 1, dwarf: 1, human: 1 },
+  racePower: { orc: 1, elf: 1, dwarf: 1, human: 1, undead: 1, insect: 1, beast: 1 },
+  raceSelection: [],
   infiniteMana: false,
 };
 
-export type NumericRuleKey = Exclude<keyof WorldRules, 'racePower' | 'infiniteMana' | 'allianceVictory'>;
+export type NumericRuleKey = Exclude<
+  keyof WorldRules,
+  'racePower' | 'raceSelection' | 'infiniteMana' | 'allianceVictory' | 'neutralLairs'
+>;
 
 export interface RuleDef {
   key: NumericRuleKey;
@@ -84,6 +93,7 @@ export function mergeRules(partial: Partial<WorldRules> = {}): WorldRules {
     ...DEFAULT_RULES,
     ...partial,
     racePower: { ...DEFAULT_RULES.racePower, ...partial.racePower },
+    raceSelection: [...(partial.raceSelection ?? DEFAULT_RULES.raceSelection)],
   };
 }
 

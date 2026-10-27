@@ -9,7 +9,7 @@ import {
   buildingQualityOf, designBlueprint, inventionChance, maybeInvent,
 } from '../src/sim/systems/invention';
 import { spawnUnit } from '../src/sim/util';
-import { createWorld } from '../src/sim/world';
+import { createWorld } from './helpers';
 
 describe('發明機率', () => {
   it('智慧 10 以下不會發明，越聰明機率越高，有書院更高', () => {
