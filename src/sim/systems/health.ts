@@ -41,7 +41,7 @@ export function naturalDamage(world: World, u: Unit, dmg: number, cause: 'diseas
   if (u.hp <= 0) return;
   u.hp -= dmg;
   if (u.hp > 0) return;
-  handleDeath(world, u);
+  handleDeath(world, u, cause === 'disease' ? '病死' : '餓死');
   const f = world.factions[u.factionId];
   if (cause === 'disease') f.stats.diseaseDeaths++;
   else f.stats.starved++;
@@ -57,6 +57,7 @@ export function infect(world: World, u: Unit): boolean {
 
 /** 有壽命的種族（蟲族）到時間就會老死；每隻的壽命略有不同 */
 export function lifespanOf(u: Unit): number {
+  if (u.hero) return Infinity; // 英雄突破了壽命的限制
   const base = RACES[u.race].lifespan;
   return base > 0 ? base + ((u.id * 97) % 600) : Infinity;
 }
@@ -65,7 +66,7 @@ export function updateAging(world: World): void {
   for (const u of world.units) {
     if (u.hp > 0 && world.tick - u.bornAt > lifespanOf(u)) {
       u.hp = 0;
-      handleDeath(world, u);
+      handleDeath(world, u, '壽終正寢');
     }
   }
 }

@@ -69,6 +69,8 @@ export function isTargetable(u: Unit, fromX?: number, fromY?: number): boolean {
 export const sickMult = (u: Unit): number => (u.sick ? 0.5 : 1);
 
 export function unitLabel(u: Unit): string {
+  if (u.monster) return u.name;
+  if (u.hero) return `${RACES[u.race].name}英雄 ${u.name}「${u.hero.title}」`;
   const role = u.role === 'warrior' && u.troop !== 'soldier' ? troopName(u.troop, u.race) : ROLE_NAMES[u.role];
   return `${RACES[u.race].name}${role} ${u.name}`;
 }

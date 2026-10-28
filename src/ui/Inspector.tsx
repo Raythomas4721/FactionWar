@@ -15,6 +15,7 @@ import { persuadeChance } from '../sim/systems/diplomacy';
 import { inventionChance } from '../sim/systems/invention';
 import { guardiansOf, lairOfBuilding } from '../sim/systems/neutral';
 import { MONSTERS, treasureLabel } from '../sim/lairs';
+import { HeroCard } from './HeroCard';
 
 const ATTR_HINTS: Record<string, string> = {
   str: '近戰傷害、採集量、建造速度',
@@ -105,6 +106,13 @@ function UnitView({ world, u }: { world: World; u: Unit }) {
         <span className="muted">出生 {formatTime(u.bornAt)}</span>
       </div>
       <div className="iv-doing">{u.monster ? '守護巢穴中的中立怪物' : `正在：${describeAction(world, u)}`}</div>
+      {u.hero && <HeroCard world={world} u={u} />}
+      {u.summonedBy !== undefined && (
+        <div className="troop-desc">
+          召喚物，{Math.max(0, Math.ceil(((u.expiresAt ?? 0) - world.tick) / TICKS_PER_SECOND))} 秒後消散
+        </div>
+      )}
+      {u.poison && world.tick < u.poison.until && <div className="sick-badge">☠ 中毒 ×{u.poison.stacks}</div>}
       <div className="iv-status">
         <span className={u.sick ? 'sick-badge' : ''}>{u.sick ? '☣ 患病中（工作減半）' : world.tick < u.immuneUntil ? '🛡 剛康復，暫時免疫' : '健康'}</span>
         <span>染病風險 ×{infectionRisk(world, u).toFixed(2)}</span>

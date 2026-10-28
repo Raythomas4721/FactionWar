@@ -13,6 +13,9 @@ import { infect, infectionRisk } from './health';
 import { RACES } from '../races';
 import { claimLair, hasRelic, lairOfBuilding } from './neutral';
 import {
+  attackModifiers, auraBonus, heroCooldownMult, heroDamageTakenMult, onHeroDeath, onHeroHit, onKill, onPoisonedDeath,
+} from './heroSystem';
+import {
   AMBUSH_MULT, CHARGE_DISTANCE, CHARGE_MULT, LIFESTEAL, SAPPER_VS_BUILDING, SPEAR_VS_CAVALRY, STING_INFECT,
 } from '../troops';
 import { moveTo } from './movement';
@@ -46,19 +49,22 @@ export function mitigatedDamage(raw: number, def: Attributes, armor: number, pie
   return Math.max(1, raw - armor * (pierce ? 0.3 : 1) - def.con * 0.2 * (pierce ? 0.5 : 1));
 }
 
-/** 輕羽武器攻速 +25% */
-const attackCooldown = (u: Unit) => Math.round(cooldownOf(u.attrs) * (hasTrait(u.weapon, 'swift') ? 0.8 : 1));
+/** 輕羽武器攻速 +25%；英雄天賦與狂暴也會加快 */
+const attackCooldown = (world: World, u: Unit) =>
+  Math.max(2, Math.round(cooldownOf(u.attrs) * (hasTrait(u.weapon, 'swift') ? 0.8 : 1) * heroCooldownMult(world, u)));
 
 export function damageUnit(world: World, target: Unit, dmg: number, byFaction: number, byLabel: string, byUnit?: Unit): void {
   if (target.hp <= 0) return;
-  target.hp -= dmg;
+  target.hp -= dmg * heroDamageTakenMult(target);
   if (!RACES[target.race].fearless) {
     const iron = hasRelic(world, target.factionId, 'iron') ? 0.5 : 1;
     target.morale = clamp(target.morale - dmg * 0.8 * moraleLossMult(target.attrs) * iron, 0, 100);
   }
   if (target.hp > 0) return;
 
-  handleDeath(world, target);
+  onPoisonedDeath(world, target);
+  handleDeath(world, target, `被 ${byLabel} 擊殺`);
+  if (byUnit) onKill(world, byUnit, target);
   if (byFaction >= 0) {
     const killer = world.factions[byFaction];
     killer.stats.kills++;
@@ -78,9 +84,10 @@ export function damageUnit(world: World, target: Unit, dmg: number, byFaction: n
   logEvent(world, 'combat', `${byLabel} 擊殺了 ${unitLabel(target)}`, byFaction);
 }
 
-/** 任何死因都會做的事：記錄陣亡、附近同伴士氣下降、可能被死靈族喚起 */
-export function handleDeath(world: World, target: Unit): void {
+/** 任何死因都會做的事：記錄陣亡、英雄寫入英雄榜、附近同伴士氣下降、可能被死靈族喚起 */
+export function handleDeath(world: World, target: Unit, cause = '戰死'): void {
   world.factions[target.factionId].stats.deaths++;
+  if (target.hero) onHeroDeath(world, target, cause);
   for (const ally of world.units) {
     if (ally.factionId === target.factionId && ally.hp > 0 && !RACES[ally.race].fearless && dist(ally.x, ally.y, target.x, target.y) < 5) {
       ally.morale = clamp(ally.morale - 8 * moraleLossMult(ally.attrs), 0, 100);
@@ -94,7 +101,7 @@ const RAISE_RADIUS = 7;
 
 /** 招魂：活人死去時，附近的死靈族有機會把屍骸喚起成骷髏兵（帶著原本的武器） */
 function raiseDead(world: World, corpse: Unit): void {
-  if (RACES[corpse.race].raiseDead > 0) return; // 死靈不會再次復生
+  if (RACES[corpse.race].raiseDead > 0 || corpse.summonedBy !== undefined) return; // 死靈與召喚物不會復生
   for (const f of world.factions) {
     const chance = RACES[f.race].raiseDead;
     if (!f.alive || chance <= 0) continue;
@@ -136,6 +143,7 @@ export function eliminateFaction(world: World, f: Faction, by: Faction | null): 
   for (const u of world.units) if (u.factionId === f.id) u.hp = 0;
   for (const b of world.buildings) if (b.factionId === f.id) b.hp = 0;
   const who = by ? `被 ${by.name} 攻陷` : '毀於天災';
+  f.fallReason = `${Math.floor(world.tick / 600)} 分時營帳${who}`;
   logEvent(world, 'faction', `${f.name} 的營帳${who}，殘部潰散，陣營覆滅！`, by ? by.id : f.id);
 }
 
@@ -145,7 +153,7 @@ function addTracer(world: World, u: Unit, x: number, y: number) {
 
 export function strikeUnit(world: World, u: Unit, target: Unit): void {
   if (u.cooldown > 0) return;
-  u.cooldown = attackCooldown(u);
+  u.cooldown = attackCooldown(world, u);
   if (weaponStats(u).ranged) addTracer(world, u, target.x, target.y);
   if (!world.rng.chance(hitChance(u.attrs, target.attrs))) {
     u.charge = 0;
@@ -155,11 +163,15 @@ export function strikeUnit(world: World, u: Unit, target: Unit): void {
   // 烈焰對死靈等不潔之物傷害加倍
   const holyFire = hasTrait(u.weapon, 'flame') && RACES[target.race].unholy ? 2 : 1;
   const war = hasRelic(world, u.factionId, 'war') ? 1.2 : 1;
-  const raw = rawDamage(u) * world.rng.range(0.85, 1.15) * world.rules.damageMult * troopMultiplier(u, target) * holyFire * war;
+  const hero = attackModifiers(world, u, target);
+  if (hero.crit) world.effects.push({ x1: target.x, y1: target.y, x2: target.x, y2: target.y, ttl: 4, maxTtl: 4, radius: 0.8, color: '#ffe14d' });
+  const raw =
+    rawDamage(u) * world.rng.range(0.85, 1.15) * world.rules.damageMult * troopMultiplier(u, target) * holyFire * war * hero.mult;
   u.charge = 0;
   revealAfterAttack(world, u);
-  const dmg = mitigatedDamage(raw, target.attrs, armorOf(target), hasTrait(u.weapon, 'pierce'));
+  const dmg = mitigatedDamage(raw, target.attrs, armorOf(target) + auraBonus(world, target).armor, hasTrait(u.weapon, 'pierce'));
   damageUnit(world, target, dmg, u.factionId, unitLabel(u), u);
+  onHeroHit(world, u, target, dmg);
   // 食屍鬼吸血
   if (u.troop === 'ghoul') u.hp = Math.min(u.maxHp, u.hp + dmg * LIFESTEAL);
   // 淬毒武器、毒刺蟲：命中後可能讓對方染病（體質與抗性照算）
@@ -182,7 +194,7 @@ export function troopMultiplier(u: Unit, target: Unit): number {
 
 export function strikeBuilding(world: World, u: Unit, b: Building): void {
   if (u.cooldown > 0) return;
-  u.cooldown = attackCooldown(u);
+  u.cooldown = attackCooldown(world, u);
   const c = centerOf(b);
   if (weaponStats(u).ranged) addTracer(world, u, c.x, c.y);
   const siege =

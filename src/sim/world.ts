@@ -25,6 +25,7 @@ import { infirmaryOf, updateAging, updateDisease, updateHunger } from './systems
 import { envoyTick, isAllianceVictory, subvertTick, updateDiplomacy, updateLoyalty } from './systems/diplomacy';
 import { initTreaties } from './systems/treaties';
 import { guardianRegen, guardianThink, hasRelic, setupLairs } from './systems/neutral';
+import { updateHeroes } from './systems/heroSystem';
 import { ambushTick, tunnelTick, updateStealth } from './systems/troopActions';
 import { moveTo } from './systems/movement';
 
@@ -67,6 +68,7 @@ export function createBlankWorld(seed: number, width = MAP_W, height = MAP_H, ru
     allianceSince: null,
     mana: MANA_MAX / 2,
     lairs: [],
+    legends: [],
   };
 }
 
@@ -93,7 +95,7 @@ export function createFaction(world: World, race: RaceId, races: RaceId[]): Fact
     relations: races.map((other) => (other === race ? 100 : RIVALRY[race][other])),
     stats: {
       kills: 0, deaths: 0, crafted: 0, built: 0, trained: 0,
-      infections: 0, diseaseDeaths: 0, starved: 0, recruited: 0, defected: 0, treaties: 0, inventions: 0, bestItem: null,
+      infections: 0, diseaseDeaths: 0, starved: 0, recruited: 0, defected: 0, treaties: 0, inventions: 0, heroes: 0, bestItem: null,
     },
     nextAiAt: 1 + world.factions.length * 5,
     nextDiplomacyAt: 600 + world.factions.length * 50,
@@ -101,6 +103,7 @@ export function createFaction(world: World, race: RaceId, races: RaceId[]): Fact
     starving: false,
     neutral: race === 'beast',
     relics: [],
+    fallReason: null,
     attrBonus: { str: 0, agi: 0, int: 0, con: 0, cha: 0 },
   };
   world.factions.push(f);
@@ -175,6 +178,7 @@ export function step(world: World): void {
   updateAging(world);
   updateLoyalty(world);
   updateStealth(world);
+  updateHeroes(world);
   updateDiplomacy(world);
 
   const besieged = new Set<number>();
@@ -190,7 +194,7 @@ export function step(world: World): void {
     if (u.cooldown > 0) u.cooldown--;
     if (world.tick >= u.thinkAt) {
       if (u.monster) guardianThink(world, u);
-      else think(world, u);
+      else if (!u.hero?.possessed) think(world, u);
       u.thinkAt = world.tick + 6 + (u.id % 4);
     }
     if (!act(world, u)) {

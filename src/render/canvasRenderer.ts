@@ -266,6 +266,47 @@ export class CanvasRenderer {
       ctx.fill();
     }
     ctx.globalAlpha = 1;
+    if (u.summonedBy !== undefined) {
+      ctx.strokeStyle = f.color;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([1.5, 2]);
+      ctx.beginPath();
+      ctx.arc(x, y, 6.5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    if (u.poison && world.tick < u.poison.until) {
+      ctx.fillStyle = '#7dff5a';
+      for (let i = 0; i < Math.min(3, u.poison.stacks); i++) ctx.fillRect(x - 4 + i * 3, y + 5, 2, 2);
+    }
+    if (u.hero) {
+      // 英雄：頭上金星；附身中再加金色光圈與指向目標的線
+      ctx.fillStyle = '#ffd75e';
+      ctx.font = 'bold 10px sans-serif';
+      ctx.fillText('★', x, y - 9);
+      if (u.hero.possessed) {
+        ctx.strokeStyle = '#ffd75e';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(x, y, 9 + Math.sin(world.tick / 3) * 1.5, 0, Math.PI * 2);
+        ctx.stroke();
+        const a = u.action;
+        const t = a.type === 'attackUnit' ? world.unitMap.get(a.targetId) : undefined;
+        const tx = t ? t.x : a.type === 'guard' ? a.x : null;
+        const ty = t ? t.y : a.type === 'guard' ? a.y : null;
+        if (tx !== null && ty !== null) {
+          ctx.globalAlpha = 0.6;
+          ctx.setLineDash([3, 3]);
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.lineTo(tx * TILE_PX, ty * TILE_PX);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.globalAlpha = 1;
+        }
+      }
+    }
     if (u.sick) {
       ctx.strokeStyle = '#b6ff3b';
       ctx.lineWidth = 1.2;
@@ -346,9 +387,10 @@ export function shade(hex: string, amount: number): string {
 }
 
 /** 畫面座標 → 選取的單位或建築 */
-export function pickAt(world: World, tx: number, ty: number): Selection | null {
+/** radius：點擊容許的距離（格），手機上地圖小時要放寬 */
+export function pickAt(world: World, tx: number, ty: number, radius = 0.9): Selection | null {
   let best: Unit | null = null;
-  let bestD = 0.9;
+  let bestD = radius;
   for (const u of world.units) {
     const d = Math.hypot(u.x - tx, u.y - ty);
     if (d < bestD) {

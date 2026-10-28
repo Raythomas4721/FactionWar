@@ -109,7 +109,7 @@ export function subvertTick(world: World, u: Unit, targetId: number): boolean {
   t.loyalty = Math.min(100, t.loyalty + 3);
   if (world.rng.chance(CAUGHT_CHANCE)) {
     u.hp = 0;
-    handleDeath(world, u);
+    handleDeath(world, u, '身分敗露遭處決');
     adjustRelation(world, t.factionId, u.factionId, -5);
     logEvent(world, 'diplomacy', `${unitLabel(u)} 策反 ${unitLabel(t)} 失敗，身分敗露遭到處決`, t.factionId);
   }

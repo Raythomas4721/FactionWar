@@ -136,7 +136,8 @@ export function moveTo(world: World, u: Unit, cx: number, cy: number, stopDist: 
 
   let speed =
     speedOf(u.attrs) * (u.sick ? 0.75 : 1) * TROOP_DEFS[u.troop].speedMult *
-    (world.factions[u.factionId]?.relics.includes('swift') ? 1.2 : 1);
+    (world.factions[u.factionId]?.relics.includes('swift') ? 1.2 : 1) *
+    (u.hero?.talents.includes('swiftness') ? 1.2 : 1);
   const startX = u.x;
   const startY = u.y;
   while (speed > 0) {

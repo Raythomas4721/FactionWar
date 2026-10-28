@@ -98,7 +98,7 @@ input {
 }
 @media (max-width: 1000px) {
   .main {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -121,8 +121,9 @@ input {
   cursor: crosshair;
 }
 .game-over {
-  position: absolute;
+  position: fixed;
   inset: 0;
+  z-index: 5;
   background: rgba(8, 10, 12, 0.72);
   display: flex;
   flex-direction: column;
@@ -598,6 +599,221 @@ canvas.casting {
   background: #7a2420;
   border: 1.5px solid #ff8a6a;
   transform: rotate(45deg);
+}
+
+/* 手機 */
+.canvas-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+@media (max-width: 640px) {
+  .app {
+    padding: 8px 10px 20px;
+    gap: 8px;
+  }
+  /* 地圖放大到每格約 10 像素，左右滑動查看 */
+  .canvas-scroll .canvas-wrap {
+    width: 640px;
+  }
+  .control-bar {
+    gap: 6px;
+  }
+  .control-bar h1 {
+    font-size: 16px;
+    margin-right: 0;
+  }
+  .control-bar .muted,
+  .seed-form {
+    display: none;
+  }
+  .speed-group button,
+  .control-bar button {
+    padding: 3px 7px;
+  }
+  .god-bar {
+    padding: 5px 6px;
+    gap: 6px;
+  }
+  .power {
+    padding: 3px 6px;
+    font-size: 12px;
+  }
+  .legend {
+    gap: 8px;
+    font-size: 11px;
+  }
+  .attr {
+    grid-template-columns: 34px 70px 36px;
+  }
+  .attr-hint {
+    display: none;
+  }
+}
+
+/* 英雄 */
+.hero-card {
+  border: 1px solid #6b5a2a;
+  background: #231f14;
+  border-radius: 6px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.hero-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.hero-icon {
+  font-size: 16px;
+}
+.hero-level {
+  margin-left: auto;
+  color: var(--accent);
+  font-weight: bold;
+}
+.hero-xp > div {
+  background: var(--accent);
+}
+.hero-desc,
+.hero-skill-desc {
+  font-size: 12px;
+}
+.hero-choice {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+.hero-choice-title {
+  grid-column: 1 / -1;
+  color: var(--accent);
+  font-weight: bold;
+}
+.hero-choice button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  border-color: var(--accent);
+}
+.hero-choice small {
+  color: var(--muted);
+}
+.hero-talents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.talent {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: #3a3220;
+  border: 1px solid #6b5a2a;
+}
+.hero-combos {
+  font-size: 12px;
+  color: #9fe0ff;
+}
+.hero-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.hero-deeds summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--muted);
+}
+.hero-deeds ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+}
+.possess-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  background: #2a2412;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+.hero-panel ul.hero-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.hero-list li {
+  display: grid;
+  grid-template-columns: 18px auto 1fr;
+  gap: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+.hero-list li:hover,
+.hero-list li.possessed {
+  background: var(--panel-2);
+}
+.hero-list .muted {
+  text-align: right;
+}
+
+/* 戰報 */
+.game-over-box {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  width: min(640px, 94%);
+  max-height: 92%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.game-over-box .game-over-title {
+  font-size: 22px;
+  text-align: center;
+}
+.report-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.report {
+  border-left: 4px solid;
+  background: var(--panel-2);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+.report.won {
+  background: #2a2a16;
+}
+.report-head {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.finding {
+  margin-top: 4px;
+}
+.finding .tip {
+  color: #9fe0ff;
+  font-size: 12px;
+  padding-left: 18px;
 }
 
 /* 參戰種族 */

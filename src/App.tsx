@@ -11,6 +11,10 @@ import { FactionPanel } from './ui/FactionPanel';
 import { GodBar } from './ui/GodBar';
 import { Inspector } from './ui/Inspector';
 import { RulesPanel } from './ui/RulesPanel';
+import { HeroPanel } from './ui/HeroPanel';
+import { GameReport } from './ui/GameReport';
+import { commandHero, possessedHero, release, useSkill } from './sim/systems/heroSystem';
+import { PATHS } from './sim/heroes';
 
 const randomSeed = () => Math.floor(Math.random() * 1_000_000);
 const MAX_STEPS_PER_FRAME = 400;
@@ -95,7 +99,13 @@ export function App() {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLButtonElement) return;
       const idx = Number(e.key) - 1;
       if (idx >= 0 && idx < POWER_ORDER.length) setPower((p) => (p === POWER_ORDER[idx] ? null : POWER_ORDER[idx]));
-      else if (e.key === 'Escape') setPower(null);
+      else if (e.key === 'Escape') {
+        setPower(null);
+        release(worldRef.current);
+      } else if (e.key === 'q' || e.key === 'Q') {
+        const hero = possessedHero(worldRef.current);
+        if (hero) useSkill(worldRef.current, hero);
+      }
       else if (e.key === ' ') {
         e.preventDefault();
         setPaused((p) => !p);
@@ -136,17 +146,24 @@ export function App() {
   const onCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const world = worldRef.current;
     const { x, y } = toTile(e);
+    const hero = possessedHero(world);
+    if (!power && hero) {
+      setCastMsg({ ok: true, text: `👁 ${hero.name}：${commandHero(world, hero, x, y)}` });
+      return;
+    }
     if (power) {
       const r = castPower(world, power, x, y);
       setCastMsg({ ok: r.ok, text: r.message });
       if (!world.rules.infiniteMana && world.mana < POWER_DEFS[power].cost) setPower(null);
       return;
     }
-    setSelection(pickAt(world, x, y));
+    // 至少容許約 14 像素的誤差，手機上手指才點得到小人
+    const tilePx = e.currentTarget.getBoundingClientRect().width / world.width;
+    setSelection(pickAt(world, x, y, Math.max(0.9, 14 / tilePx)));
   };
 
   const world = worldRef.current;
-  const winner = world.winner !== null ? world.factions[world.winner] : null;
+  const possessed = possessedHero(world);
 
   return (
     <div className="app">
@@ -164,6 +181,26 @@ export function App() {
       <div className="main">
         <div className="board">
           <GodBar world={world} selected={power} onSelect={setPower} message={castMsg} />
+          {possessed?.hero && (
+            <div className="possess-bar">
+              <span>
+                👁 附身中：<b>{possessed.name}「{possessed.hero.title}」</b>
+                <span className="muted"> 點地圖移動、點敵人攻擊</span>
+              </span>
+              <span className="spacer" />
+              <button
+                className="primary"
+                disabled={possessed.hero.skillCd > 0}
+                onClick={() => useSkill(world, possessed)}
+              >
+                ⚡ {PATHS[possessed.hero.path].skill.name}
+                {possessed.hero.skillCd > 0 ? ` ${Math.ceil(possessed.hero.skillCd / TICKS_PER_SECOND)}s` : ' (Q)'}
+              </button>
+              <button onClick={() => release(world)}>解除 (Esc)</button>
+            </div>
+          )}
+          {/* 手機上地圖放大，左右滑動查看 */}
+          <div className="canvas-scroll">
           <div className="canvas-wrap" style={{ aspectRatio: `${world.width * TILE_PX} / ${world.height * TILE_PX}` }}>
             <canvas
               ref={canvasRef}
@@ -177,17 +214,14 @@ export function App() {
                 setPower(null);
               }}
             />
-            {world.over && (
-              <div className="game-over">
-                <div className="game-over-title" style={{ color: winner?.color }}>{world.endReason}</div>
-                <button onClick={() => newGame(randomSeed())}>再來一局</button>
-              </div>
-            )}
           </div>
+          </div>
+          {world.over && <GameReport world={world} onAgain={() => newGame(randomSeed())} />}
           <Legend />
         </div>
         <div className="side">
-          <Inspector world={world} selection={selection} />
+          <Inspector world={world} selection={possessed ? { kind: 'unit', id: possessed.id } : selection} />
+          <HeroPanel world={world} onSelect={(id) => setSelection({ kind: 'unit', id })} />
           <EventLog world={world} />
         </div>
       </div>

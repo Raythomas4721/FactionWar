@@ -2,6 +2,42 @@ import type { Rng } from './rng';
 import type { WorldRules } from './rules';
 import type { ItemDef } from './items';
 import type { Lair, MonsterKind, RelicId } from './lairs';
+import type { HeroPath, TalentId } from './heroes';
+
+/** 英雄：擊殺夠多的戰士晉升而來，有流派、等級、天賦與技能 */
+export interface Hero {
+  title: string;
+  path: HeroPath;
+  level: number;
+  xp: number;
+  talents: TalentId[];
+  /** 升級時等待玩家二選一的天賦（AI 陣營會自動選） */
+  choice: TalentId[] | null;
+  skillCd: number;
+  summonCd: number;
+  /** 被玩家附身操控中 */
+  possessed: boolean;
+  nextCrit: boolean;
+  rageUntil: number;
+  promotedAt: number;
+  /** 英雄事蹟 */
+  deeds: string[];
+}
+
+/** 英雄榜：戰死的英雄 */
+export interface Legend {
+  name: string;
+  title: string;
+  factionId: number;
+  race: RaceId;
+  path: HeroPath;
+  level: number;
+  kills: number;
+  promotedAt: number;
+  diedAt: number;
+  cause: string;
+  deeds: string[];
+}
 
 /** beast 為中立怪物，不會出現在參戰種族中 */
 export type RaceId = 'orc' | 'elf' | 'dwarf' | 'human' | 'undead' | 'insect' | 'beast';
@@ -104,6 +140,12 @@ export interface Unit {
   /** 中立怪物的種類與守護的家 */
   monster?: MonsterKind;
   home?: Point;
+  hero?: Hero;
+  /** 身上的劇毒（毒傷流英雄造成） */
+  poison?: { stacks: number; until: number; byUnit: number; byFaction: number; potency: number };
+  /** 召喚物：召喚者 id 與消失時間 */
+  summonedBy?: number;
+  expiresAt?: number;
 }
 
 export interface Building {
@@ -148,6 +190,8 @@ export interface FactionStats {
   defected: number;
   treaties: number;
   inventions: number;
+  /** 晉升過的英雄數 */
+  heroes: number;
   bestItem: { label: string; power: number } | null;
 }
 
@@ -184,12 +228,14 @@ export interface Faction {
   neutral: boolean;
   /** 攻陷巢穴獲得的秘術 */
   relics: RelicId[];
+  /** 覆滅的原因（戰報用） */
+  fallReason: string | null;
   /** 賢者秘藥帶來的屬性加成（現有與之後出生的族人都有） */
   attrBonus: Attributes;
 }
 
 export type EventKind =
-  | 'combat' | 'craft' | 'invention' | 'build' | 'tech' | 'faction' | 'god' | 'health' | 'diplomacy' | 'lair' | 'info';
+  | 'combat' | 'craft' | 'invention' | 'build' | 'tech' | 'faction' | 'god' | 'health' | 'diplomacy' | 'lair' | 'hero' | 'info';
 
 export interface GameEvent {
   tick: number;
@@ -241,4 +287,6 @@ export interface World {
   mana: number;
   /** 中立怪物守護的巢穴 */
   lairs: Lair[];
+  /** 英雄榜：戰死的英雄 */
+  legends: Legend[];
 }
