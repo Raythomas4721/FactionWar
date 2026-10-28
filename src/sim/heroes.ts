@@ -132,7 +132,7 @@ export const SUMMON_LIFETIME = 900;
 
 /** 各種族偏好的流派 */
 export const PATH_AFFINITY: Record<RaceId, Partial<Record<HeroPath, number>>> = {
-  orc: { berserk: 2, crit: 0.5 },
+  orc: { berserk: 1.5, crit: 0.5, guardian: 0.3 },
   elf: { crit: 1.5, venom: 1 },
   dwarf: { guardian: 1.5, berserk: 1 },
   human: { guardian: 1.5, crit: 1 },

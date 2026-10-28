@@ -85,7 +85,7 @@ export const RACES = {
     factionName: '獸人部落',
     color: '#8bd450',
     base: { str: 14, agi: 9, int: 6, con: 13, cha: 6 },
-    unitCost: 21,
+    unitCost: 22,
     popPerHouse: 7,
     foodUpkeep: 1.2,
     rangedShare: 0.15,
