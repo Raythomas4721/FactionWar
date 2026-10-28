@@ -714,53 +714,209 @@ canvas.casting {
   color: var(--muted);
 }
 
-/* 手機 */
-.canvas-scroll {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+/* 地圖操作：拖曳、縮放（瀏覽器不要自己捲動或縮放頁面） */
+.canvas-wrap canvas {
+  touch-action: none;
 }
-@media (max-width: 640px) {
-  .app {
-    padding: 8px 10px 20px;
-    gap: 8px;
-  }
-  /* 地圖放大到每格約 10 像素，左右滑動查看 */
-  .canvas-scroll .canvas-wrap {
-    width: 640px;
-  }
-  .control-bar {
-    gap: 6px;
-  }
-  .control-bar h1 {
-    font-size: 16px;
-    margin-right: 0;
-  }
-  .control-bar .muted,
-  .seed-form {
-    display: none;
-  }
-  .speed-group button,
-  .control-bar button {
-    padding: 3px 7px;
-  }
-  .god-bar {
-    padding: 5px 6px;
-    gap: 6px;
-  }
-  .power {
-    padding: 3px 6px;
-    font-size: 12px;
-  }
-  .legend {
-    gap: 8px;
-    font-size: 11px;
-  }
-  .attr {
-    grid-template-columns: 34px 70px 36px;
-  }
-  .attr-hint {
-    display: none;
-  }
+.map-controls {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 2;
+}
+.map-controls button {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  font-size: 16px;
+  line-height: 1;
+  background: rgba(27, 33, 39, 0.85);
+}
+
+/* 手機上附身英雄的大顆技能鍵：放在地圖下方的一條 */
+.touch-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.hero-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: 14px;
+  padding: 3px 10px;
+  font-size: 12px;
+}
+.hero-chip .meter {
+  flex: 1;
+}
+.touch-skills {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+}
+.touch-btn {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  font-size: 12px;
+  line-height: 1.1;
+  background: rgba(27, 33, 39, 0.88);
+  border: 2px solid var(--border);
+}
+.touch-btn.small {
+  width: 46px;
+  height: 46px;
+  font-size: 15px;
+}
+.touch-btn.ready {
+  border-color: var(--accent);
+}
+.touch-btn.ult.ready {
+  border-color: #ff7ad9;
+  background: rgba(58, 31, 53, 0.92);
+}
+.touch-name {
+  font-weight: bold;
+}
+.touch-sub {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+/* 手機底部分頁列 */
+.mobile-tabs {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  padding-bottom: env(safe-area-inset-bottom);
+  z-index: 6;
+}
+.mobile-tabs button {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 6px 0 7px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.mobile-tabs button span {
+  font-size: 18px;
+}
+.mobile-tabs button.active {
+  color: var(--accent);
+  background: var(--panel-2);
+}
+
+/* 手機版面 */
+.app.mobile {
+  padding: 6px 8px 76px;
+  gap: 6px;
+}
+.app.mobile .control-bar {
+  gap: 5px;
+}
+.app.mobile .control-bar h1 {
+  font-size: 16px;
+  margin-right: 0;
+}
+.app.mobile .control-bar .muted,
+.app.mobile .seed-form,
+.app.mobile .control-bar .spacer {
+  display: none;
+}
+.app.mobile .control-bar button {
+  padding: 4px 8px;
+}
+/* 神力、事件與地圖固定在畫面上方，下面的面板捲動時地圖還看得到 */
+.app.mobile .board {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--bg);
+  padding-bottom: 4px;
+  gap: 4px;
+}
+.app.mobile .god-bar {
+  padding: 4px 6px;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+.app.mobile .mana {
+  min-width: 0;
+  flex: none;
+}
+.app.mobile .mana > span:first-child,
+.app.mobile .mana-meter {
+  display: none;
+}
+.app.mobile .powers {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.app.mobile .power {
+  flex: none;
+  padding: 5px 8px;
+  font-size: 12px;
+}
+.app.mobile .god-hint {
+  display: none;
+}
+.app.mobile .trial-banner {
+  padding: 4px 8px;
+}
+.app.mobile .trial-banner-text {
+  font-size: 12px;
+}
+.app.mobile .trial-banner-text .muted {
+  display: none;
+}
+.app.mobile .side .panel {
+  min-height: 0;
+  max-height: none;
+}
+.app.mobile .event-log ul {
+  max-height: none;
+}
+.app.mobile .hero-panel ul.hero-list {
+  max-height: none;
+}
+.app.mobile .factions {
+  grid-template-columns: 1fr;
+}
+.app.mobile .legend {
+  gap: 8px;
+  font-size: 11px;
+}
+.app.mobile .attr {
+  grid-template-columns: 34px 1fr 40px;
+}
+.app.mobile .attr-hint {
+  display: none;
+}
+.app.mobile .hero-choice button {
+  padding: 8px;
 }
 
 /* 英雄 */
