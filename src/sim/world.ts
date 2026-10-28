@@ -26,6 +26,8 @@ import { envoyTick, isAllianceVictory, subvertTick, updateDiplomacy, updateLoyal
 import { initTreaties } from './systems/treaties';
 import { guardianRegen, guardianThink, hasRelic, setupLairs } from './systems/neutral';
 import { updateHeroes } from './systems/heroSystem';
+import { updateWorldEvents } from './events';
+import { evaluateTrial } from './trials';
 import { ambushTick, tunnelTick, updateStealth } from './systems/troopActions';
 import { moveTo } from './systems/movement';
 
@@ -69,6 +71,8 @@ export function createBlankWorld(seed: number, width = MAP_W, height = MAP_H, ru
     mana: MANA_MAX / 2,
     lairs: [],
     legends: [],
+    activeEvents: [],
+    nextEventAt: 0,
   };
 }
 
@@ -179,6 +183,7 @@ export function step(world: World): void {
   updateLoyalty(world);
   updateStealth(world);
   updateHeroes(world);
+  updateWorldEvents(world);
   updateDiplomacy(world);
 
   const besieged = new Set<number>();
@@ -209,6 +214,7 @@ export function step(world: World): void {
   for (const e of world.effects) e.ttl--;
   world.effects = world.effects.filter((e) => e.ttl > 0);
   checkVictory(world);
+  evaluateTrial(world);
 }
 
 function act(world: World, u: Unit): boolean {

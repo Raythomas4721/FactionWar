@@ -12,6 +12,7 @@ import {
 import { damageUnit } from './combat';
 import { buildingQualityOf } from './invention';
 import { hasRelic } from './neutral';
+import { eventMult } from '../events';
 import { moveTo } from './movement';
 
 export function isBuildingUnlocked(f: Faction, type: BuildingType): boolean {
@@ -121,7 +122,9 @@ export function updateBuildings(world: World): void {
   for (const b of world.buildings) {
     if (b.hp <= 0 || !b.complete) continue;
     const f = world.factions[b.factionId];
-    if (b.type === 'farm') f.resources.food += FARM_FOOD_PER_TICK * b.quality * (hasRelic(world, f.id, 'harvest') ? 1.4 : 1);
+    if (b.type === 'farm') {
+      f.resources.food += FARM_FOOD_PER_TICK * b.quality * (hasRelic(world, f.id, 'harvest') ? 1.4 : 1) * eventMult(world, 'farm');
+    }
     if (b.type === 'hq') f.resources.food += HQ_FOOD_PER_TICK;
 
     const turret = TURRETS[b.type];

@@ -24,6 +24,8 @@ export function GodBar({ world, selected, onSelect, message }: Props) {
         {POWER_ORDER.map((id, i) => {
           const def = POWER_DEFS[id];
           const affordable = infinite || world.mana >= def.cost;
+          const allowed = !world.trial || world.trial.powers.includes(id);
+          if (!allowed) return null;
           return (
             <button
               key={id}

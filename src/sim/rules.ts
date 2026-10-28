@@ -25,6 +25,8 @@ export interface WorldRules {
   allianceVictory: boolean;
   /** 地圖上有中立怪物守護寶藏的巢穴（新局生效） */
   neutralLairs: boolean;
+  /** 每隔幾分鐘發生隨機世界事件（豐收、寒冬、流星雨…） */
+  randomEvents: boolean;
   /** 地圖資源蘊藏量倍率（新局生效） */
   resourceRichness: number;
   /** 開局科技等級（新局生效） */
@@ -49,6 +51,7 @@ export const DEFAULT_RULES: WorldRules = {
   inventionMult: 1,
   allianceVictory: true,
   neutralLairs: true,
+  randomEvents: true,
   resourceRichness: 1,
   startTech: 0,
   racePower: { orc: 1, elf: 1, dwarf: 1, human: 1, undead: 1, insect: 1, beast: 1 },
@@ -58,7 +61,7 @@ export const DEFAULT_RULES: WorldRules = {
 
 export type NumericRuleKey = Exclude<
   keyof WorldRules,
-  'racePower' | 'raceSelection' | 'infiniteMana' | 'allianceVictory' | 'neutralLairs'
+  'racePower' | 'raceSelection' | 'infiniteMana' | 'allianceVictory' | 'neutralLairs' | 'randomEvents'
 >;
 
 export interface RuleDef {

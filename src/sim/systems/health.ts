@@ -3,6 +3,7 @@ import { RACES } from '../races';
 import { diseaseResistOf, recoveryRateOf } from '../stats';
 import { TROOP_DEFS } from '../troops';
 import { hasTrait } from '../items';
+import { eventMult } from '../events';
 import type { Faction, Unit, World } from '../types';
 import { centerOf, factionBuildings, logEvent, unitLabel } from '../util';
 import { handleDeath } from './combat';
@@ -24,7 +25,8 @@ const INFIRMARY_RADIUS = 4;
 export function infectionRisk(world: World, u: Unit): number {
   const blessed = hasTrait(u.armor, 'blessed') ? 0.5 : 1;
   const vitality = world.factions[u.factionId]?.relics.includes('vitality') ? 0.4 : 1;
-  return diseaseResistOf(u.attrs) * RACES[u.race].diseaseMult * world.rules.diseaseMult * blessed * vitality;
+  return diseaseResistOf(u.attrs) * RACES[u.race].diseaseMult * world.rules.diseaseMult * blessed * vitality *
+    eventMult(world, 'disease');
 }
 
 /** 要吃飯的「人份」：騎兵連坐騎算 1.5 份 */
@@ -33,7 +35,7 @@ export function eatersOf(units: Unit[]): number {
 }
 
 export function upkeepOf(world: World, f: Faction, pop: number): number {
-  return pop * UPKEEP_PER_TICK * RACES[f.race].foodUpkeep * world.rules.upkeepMult;
+  return pop * UPKEEP_PER_TICK * RACES[f.race].foodUpkeep * world.rules.upkeepMult * eventMult(world, 'upkeep');
 }
 
 /** 飢餓、疾病等非戰鬥傷害 */

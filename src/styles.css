@@ -200,11 +200,18 @@ input {
 }
 .tabs {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 2px;
 }
 .tabs button {
-  padding: 2px 8px;
+  padding: 2px 7px;
   font-size: 12px;
+  white-space: nowrap;
+}
+.event-log .panel-head {
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 .inspector {
@@ -601,6 +608,112 @@ canvas.casting {
   transform: rotate(45deg);
 }
 
+/* 試煉與世界事件 */
+.trials .trial-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.trial {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.trial.cleared {
+  border-color: #6c8a3e;
+}
+.trial-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.trial-icon {
+  font-size: 18px;
+}
+.trial-goal {
+  color: var(--accent);
+}
+.trial-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 12px;
+}
+.trial .primary {
+  align-self: flex-start;
+}
+.trial-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #1f2433;
+  border: 1px solid #5a6cff;
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+.trial-banner-text {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  flex: 1;
+  font-size: 13px;
+}
+.trial-progress {
+  color: var(--accent);
+}
+.trial-result {
+  border-radius: 8px;
+  padding: 8px 12px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.trial-result.won {
+  background: #24361f;
+  border: 1px solid #6c8a3e;
+}
+.trial-result.lost {
+  background: #3a1f1f;
+  border: 1px solid #a84646;
+}
+.trial-result-title {
+  font-size: 20px;
+  font-weight: bold;
+}
+.trial-result .tip {
+  color: #9fe0ff;
+  font-size: 13px;
+}
+.report-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.events-bar {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.event-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: #2a2f3a;
+  border: 1px solid #4a5a7a;
+}
+.event-chip small {
+  color: var(--muted);
+}
+
 /* 手機 */
 .canvas-scroll {
   overflow-x: auto;
@@ -905,4 +1018,10 @@ canvas.casting {
   border-radius: 50%;
   background: #aaa;
   border: 1.5px solid #fff;
+}
+
+.stars {
+  color: var(--accent);
+  font-size: 12px;
+  letter-spacing: 1px;
 }

@@ -122,6 +122,14 @@ export function RulesPanel({ rules, active, onChange, onNewGame, onClose }: Prop
           中立巢穴：怪物守護遠古礦脈、神器、秘術與上古圖紙
           <em className="new-game-tag">新局</em>
         </label>
+        <label className="rule-check">
+          <input
+            type="checkbox"
+            checked={rules.randomEvents}
+            onChange={(e) => onChange({ ...rules, randomEvents: e.target.checked })}
+          />
+          隨機事件：豐收、寒冬、瘟疫季節、流星雨、獸潮、野火、神啟
+        </label>
 
         <div className="modal-actions">
           <button onClick={() => onChange(DEFAULT_RULES)}>恢復預設</button>

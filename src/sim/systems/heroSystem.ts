@@ -75,6 +75,7 @@ export function promote(world: World, u: Unit, path: HeroPath): void {
     skillCd: 0,
     summonCd: SUMMON_INTERVAL / 2,
     possessed: false,
+    everPossessed: false,
     nextCrit: false,
     rageUntil: 0,
     promotedAt: world.tick,
@@ -366,7 +367,10 @@ export function possessedHero(world: World): Unit | undefined {
 
 export function possess(world: World, u: Unit): void {
   for (const o of world.units) if (o.hero) o.hero.possessed = false;
-  if (u.hero && u.hp > 0) u.hero.possessed = true;
+  if (u.hero && u.hp > 0) {
+    u.hero.possessed = true;
+    u.hero.everPossessed = true;
+  }
 }
 
 export function release(world: World): void {

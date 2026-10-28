@@ -3,6 +3,17 @@ import type { WorldRules } from './rules';
 import type { ItemDef } from './items';
 import type { Lair, MonsterKind, RelicId } from './lairs';
 import type { HeroPath, TalentId } from './heroes';
+import type { ActiveEvent } from './events';
+import type { PowerId } from './powers';
+
+/** 進行中的試煉 */
+export interface TrialState {
+  id: string;
+  status: 'running' | 'won' | 'lost';
+  reason: string;
+  /** 這個試煉允許的神力 */
+  powers: PowerId[];
+}
 
 /** 英雄：擊殺夠多的戰士晉升而來，有流派、等級、天賦與技能 */
 export interface Hero {
@@ -17,6 +28,8 @@ export interface Hero {
   summonCd: number;
   /** 被玩家附身操控中 */
   possessed: boolean;
+  /** 曾經被玩家附身過（試煉用） */
+  everPossessed: boolean;
   nextCrit: boolean;
   rageUntil: number;
   promotedAt: number;
@@ -235,7 +248,8 @@ export interface Faction {
 }
 
 export type EventKind =
-  | 'combat' | 'craft' | 'invention' | 'build' | 'tech' | 'faction' | 'god' | 'health' | 'diplomacy' | 'lair' | 'hero' | 'info';
+  | 'combat' | 'craft' | 'invention' | 'build' | 'tech' | 'faction' | 'god' | 'health' | 'diplomacy' | 'lair' | 'hero'
+  | 'world' | 'info';
 
 export interface GameEvent {
   tick: number;
@@ -289,4 +303,10 @@ export interface World {
   lairs: Lair[];
   /** 英雄榜：戰死的英雄 */
   legends: Legend[];
+  /** 進行中的隨機世界事件 */
+  activeEvents: ActiveEvent[];
+  /** 下一個隨機事件的 tick（0 = 尚未排定） */
+  nextEventAt: number;
+  /** 造物主的試煉（一般模式為 undefined） */
+  trial?: TrialState;
 }

@@ -15,6 +15,9 @@ import { HeroPanel } from './ui/HeroPanel';
 import { GameReport } from './ui/GameReport';
 import { commandHero, possessedHero, release, useSkill } from './sim/systems/heroSystem';
 import { PATHS } from './sim/heroes';
+import { createTrialWorld, trialById, type TrialDef } from './sim/trials';
+import { TrialsPanel, saveTrialRecord } from './ui/TrialsPanel';
+import { EventsBar, TrialBanner } from './ui/WorldBanners';
 
 const randomSeed = () => Math.floor(Math.random() * 1_000_000);
 const MAX_STEPS_PER_FRAME = 400;
@@ -48,6 +51,8 @@ export function App() {
   const [power, setPower] = useState<PowerId | null>(null);
   const [castMsg, setCastMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [showRules, setShowRules] = useState(false);
+  const [showTrials, setShowTrials] = useState(false);
+  const savedTrialRef = useRef<World | null>(null);
   const [, setUiTick] = useState(0);
 
   const speedRef = useRef(speed);
@@ -56,7 +61,7 @@ export function App() {
   const powerRef = useRef(power);
   const mouseRef = useRef<{ x: number; y: number } | null>(null);
   speedRef.current = speed;
-  pausedRef.current = paused || showRules;
+  pausedRef.current = paused || showRules || showTrials;
   selectionRef.current = selection;
   powerRef.current = power;
 
@@ -125,6 +130,15 @@ export function App() {
     [rules],
   );
 
+  const startTrial = useCallback((def: TrialDef) => {
+    worldRef.current = createTrialWorld(def);
+    setSelection(null);
+    setPaused(false);
+    setPower(null);
+    setCastMsg({ ok: true, text: `試煉開始：${def.goal}` });
+    setShowTrials(false);
+  }, []);
+
   const changeRules = (next: WorldRules) => {
     setRules(next);
     saveRules(next);
@@ -164,6 +178,11 @@ export function App() {
 
   const world = worldRef.current;
   const possessed = possessedHero(world);
+  // 通過試煉時記錄最佳時間（每個世界只記一次）
+  if (world.trial?.status === 'won' && savedTrialRef.current !== world) {
+    savedTrialRef.current = world;
+    saveTrialRecord(world.trial.id, world.tick);
+  }
 
   return (
     <div className="app">
@@ -177,10 +196,13 @@ export function App() {
         onRestart={() => newGame(world.seed)}
         onSeed={newGame}
         onOpenRules={() => setShowRules(true)}
+        onOpenTrials={() => setShowTrials(true)}
       />
       <div className="main">
         <div className="board">
+          <TrialBanner world={world} onQuit={() => newGame(randomSeed())} />
           <GodBar world={world} selected={power} onSelect={setPower} message={castMsg} />
+          <EventsBar world={world} />
           {possessed?.hero && (
             <div className="possess-bar">
               <span>
@@ -216,7 +238,18 @@ export function App() {
             />
           </div>
           </div>
-          {world.over && <GameReport world={world} onAgain={() => newGame(randomSeed())} />}
+          {world.over && (
+            <GameReport
+              world={world}
+              onAgain={() => newGame(randomSeed())}
+              onRetryTrial={() => {
+                const def = world.trial && trialById(world.trial.id);
+                if (def) startTrial(def);
+              }}
+              onOpenTrials={() => setShowTrials(true)}
+            />
+          )}
+          {showTrials && <TrialsPanel onStart={startTrial} onClose={() => setShowTrials(false)} />}
           <Legend />
         </div>
         <div className="side">
