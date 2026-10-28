@@ -11,6 +11,7 @@ import { RESOURCE_TILE, findNearestResource } from '../systems/economy';
 import { bestArmoryUpgrade } from '../systems/equipment';
 import { pickSubvertTarget } from '../systems/diplomacy';
 import { findAmbushSpot } from '../systems/troopActions';
+import { followerThink } from '../systems/heroSystem';
 
 /**
  * 個體 Utility AI：列出所有可做的事、各自打分，挑最高分的去做。
@@ -25,6 +26,8 @@ interface Option {
 const RESOURCE_KINDS: ResourceKind[] = ['food', 'wood', 'stone', 'ore'];
 
 export function think(world: World, u: Unit): void {
+  // 「跟隨我」小隊：血量太低才會脫隊撤退
+  if (u.followHero !== undefined && u.hp > u.maxHp * 0.25 && followerThink(world, u)) return;
   const f = world.factions[u.factionId];
   const hq = hqOf(world, f);
   if (!hq) return;

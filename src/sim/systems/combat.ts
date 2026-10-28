@@ -13,7 +13,8 @@ import { infect, infectionRisk } from './health';
 import { RACES } from '../races';
 import { claimLair, hasRelic, lairOfBuilding } from './neutral';
 import {
-  attackModifiers, auraBonus, heroCooldownMult, heroDamageTakenMult, onHeroDeath, onHeroHit, onKill, onPoisonedDeath,
+  attackModifiers, auraBonus, floatText, heroCooldownMult, heroDamageTakenMult, onHeroDeath, onHeroHit, onKill,
+  onPoisonedDeath,
 } from './heroSystem';
 import {
   AMBUSH_MULT, CHARGE_DISTANCE, CHARGE_MULT, LIFESTEAL, SAPPER_VS_BUILDING, SPEAR_VS_CAVALRY, STING_INFECT,
@@ -172,6 +173,13 @@ export function strikeUnit(world: World, u: Unit, target: Unit): void {
   const dmg = mitigatedDamage(raw, target.attrs, armorOf(target) + auraBonus(world, target).armor, hasTrait(u.weapon, 'pierce'));
   damageUnit(world, target, dmg, u.factionId, unitLabel(u), u);
   onHeroHit(world, u, target, dmg);
+  // 打擊感：英雄相關的傷害與所有暴擊會跳數字
+  if (hero.crit || u.hero || target.hero) {
+    const color = hero.crit ? '#ffe14d' : target.hero ? '#ff6b6b' : '#ffffff';
+    floatText(world, target.x, target.y - 0.4, hero.crit ? `暴擊 ${Math.round(dmg)}` : String(Math.round(dmg)), color, hero.crit ? 13 : 10);
+  }
+  if (target.hero?.possessed) world.shake = Math.min(8, world.shake + (dmg / target.maxHp) * 40);
+  if (u.hero?.possessed && hero.crit) world.shake = Math.min(8, world.shake + 2);
   // 食屍鬼吸血
   if (u.troop === 'ghoul') u.hp = Math.min(u.maxHp, u.hp + dmg * LIFESTEAL);
   // 淬毒武器、毒刺蟲：命中後可能讓對方染病（體質與抗性照算）

@@ -30,6 +30,11 @@ export interface Hero {
   possessed: boolean;
   /** 曾經被玩家附身過（試煉用） */
   everPossessed: boolean;
+  /** 「跟隨我」：附近的戰士跟著英雄作戰 */
+  rally: boolean;
+  /** 連斬數與上次擊殺的時間 */
+  streak: number;
+  lastKillAt: number;
   nextCrit: boolean;
   rageUntil: number;
   promotedAt: number;
@@ -156,6 +161,8 @@ export interface Unit {
   hero?: Hero;
   /** 身上的劇毒（毒傷流英雄造成） */
   poison?: { stacks: number; until: number; byUnit: number; byFaction: number; potency: number };
+  /** 跟隨的英雄 id（「跟隨我」小隊） */
+  followHero?: number;
   /** 召喚物：召喚者 id 與消失時間 */
   summonedBy?: number;
   expiresAt?: number;
@@ -268,6 +275,9 @@ export interface Effect {
   maxTtl: number;
   /** 有半徑時畫成擴散的光環，否則畫成線 */
   radius?: number;
+  /** 有文字時畫成往上飄的字（傷害數字、連斬） */
+  text?: string;
+  size?: number;
   color: string;
 }
 
@@ -309,4 +319,6 @@ export interface World {
   nextEventAt: number;
   /** 造物主的試煉（一般模式為 undefined） */
   trial?: TrialState;
+  /** 畫面震動強度（純視覺，附身英雄受重擊時） */
+  shake: number;
 }

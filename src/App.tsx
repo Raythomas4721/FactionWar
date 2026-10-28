@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CanvasRenderer, TILE_PX, pickAt, type PowerCursor, type Selection } from './render/canvasRenderer';
+import {
+  CanvasRenderer, TILE_PX, clampCamera, pickAt, screenToTile, type Camera, type PowerCursor, type Selection,
+} from './render/canvasRenderer';
 import { TICKS_PER_SECOND } from './sim/constants';
 import { POWER_DEFS, POWER_ORDER, castPower, nearestFaction, type PowerId } from './sim/powers';
 import { maxTicksOf, mergeRules, type WorldRules } from './sim/rules';
@@ -13,7 +15,9 @@ import { Inspector } from './ui/Inspector';
 import { RulesPanel } from './ui/RulesPanel';
 import { HeroPanel } from './ui/HeroPanel';
 import { GameReport } from './ui/GameReport';
-import { commandHero, possessedHero, release, useSkill } from './sim/systems/heroSystem';
+import {
+  SQUAD_SIZE, commandHero, possessedHero, release, setRally, squadOf, useSkill,
+} from './sim/systems/heroSystem';
 import { PATHS } from './sim/heroes';
 import { createTrialWorld, trialById, type TrialDef } from './sim/trials';
 import { TrialsPanel, saveTrialRecord } from './ui/TrialsPanel';
@@ -60,6 +64,14 @@ export function App() {
   const selectionRef = useRef(selection);
   const powerRef = useRef(power);
   const mouseRef = useRef<{ x: number; y: number } | null>(null);
+  // 附身時鏡頭跟隨英雄並放大；可切回全景
+  const cameraRef = useRef<Camera | null>(null);
+  const [follow, setFollow] = useState(true);
+  const [zoom, setZoom] = useState(2.2);
+  const followRef = useRef(follow);
+  const zoomRef = useRef(zoom);
+  followRef.current = follow;
+  zoomRef.current = zoom;
   speedRef.current = speed;
   pausedRef.current = paused || showRules || showTrials;
   selectionRef.current = selection;
@@ -83,7 +95,8 @@ export function App() {
         n++;
       }
       if (n >= MAX_STEPS_PER_FRAME) acc = 0;
-      renderer.draw(world, selectionRef.current, cursorFor(world, powerRef.current, mouseRef.current));
+      cameraRef.current = updateCamera(world, cameraRef.current, followRef.current, zoomRef.current);
+      renderer.draw(world, selectionRef.current, cursorFor(world, powerRef.current, mouseRef.current), cameraRef.current);
       if (now - lastUi > UI_REFRESH_MS) {
         lastUi = now;
         setUiTick((t) => t + 1);
@@ -94,8 +107,15 @@ export function App() {
     return () => cancelAnimationFrame(raf);
   }, []);
 
+  // 開發模式的除錯工具：在主控台查看世界、快轉模擬
   useEffect(() => {
-    if (import.meta.env.DEV) (window as unknown as { __world: () => World }).__world = () => worldRef.current;
+    if (!import.meta.env.DEV) return;
+    const dev = window as unknown as { __world: () => World; __step: (n: number) => number };
+    dev.__world = () => worldRef.current;
+    dev.__step = (n: number) => {
+      for (let i = 0; i < n && !worldRef.current.over; i++) step(worldRef.current);
+      return worldRef.current.tick;
+    };
   }, []);
 
   // 快捷鍵：1–9 選神力、Esc 取消、空白鍵暫停
@@ -110,6 +130,13 @@ export function App() {
       } else if (e.key === 'q' || e.key === 'Q') {
         const hero = possessedHero(worldRef.current);
         if (hero) useSkill(worldRef.current, hero);
+      } else if (e.key === 'f' || e.key === 'F') {
+        const hero = possessedHero(worldRef.current);
+        if (hero?.hero) setRally(worldRef.current, hero, !hero.hero.rally);
+      } else if (e.key === '+' || e.key === '=') {
+        setZoom((z) => Math.min(4, z + 0.4));
+      } else if (e.key === '-') {
+        setZoom((z) => Math.max(1.2, z - 0.4));
       }
       else if (e.key === ' ') {
         e.preventDefault();
@@ -151,10 +178,7 @@ export function App() {
   const toTile = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const world = worldRef.current;
     const rect = e.currentTarget.getBoundingClientRect();
-    return {
-      x: ((e.clientX - rect.left) / rect.width) * world.width,
-      y: ((e.clientY - rect.top) / rect.height) * world.height,
-    };
+    return screenToTile(world, cameraRef.current, (e.clientX - rect.left) / rect.width, (e.clientY - rect.top) / rect.height);
   };
 
   const onCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -172,7 +196,7 @@ export function App() {
       return;
     }
     // 至少容許約 14 像素的誤差，手機上手指才點得到小人
-    const tilePx = e.currentTarget.getBoundingClientRect().width / world.width;
+    const tilePx = (e.currentTarget.getBoundingClientRect().width / world.width) * (cameraRef.current?.zoom ?? 1);
     setSelection(pickAt(world, x, y, Math.max(0.9, 14 / tilePx)));
   };
 
@@ -218,6 +242,22 @@ export function App() {
                 ⚡ {PATHS[possessed.hero.path].skill.name}
                 {possessed.hero.skillCd > 0 ? ` ${Math.ceil(possessed.hero.skillCd / TICKS_PER_SECOND)}s` : ' (Q)'}
               </button>
+              <button
+                className={possessed.hero.rally ? 'active' : ''}
+                title="附近的戰士跟著英雄作戰（F）"
+                onClick={() => setRally(world, possessed, !possessed.hero!.rally)}
+              >
+                🚩 {possessed.hero.rally ? `小隊 ${squadOf(world, possessed).length}/${SQUAD_SIZE}` : '跟隨我 (F)'}
+              </button>
+              <button className={follow ? 'active' : ''} onClick={() => setFollow((f) => !f)} title="鏡頭跟隨英雄／看全景">
+                {follow ? '🎥 跟隨' : '🗺 全景'}
+              </button>
+              {follow && (
+                <>
+                  <button onClick={() => setZoom((z) => Math.max(1.2, z - 0.4))} title="縮小（-）">－</button>
+                  <button onClick={() => setZoom((z) => Math.min(4, z + 0.4))} title="放大（+）">＋</button>
+                </>
+              )}
               <button onClick={() => release(world)}>解除 (Esc)</button>
             </div>
           )}
@@ -273,6 +313,27 @@ export function App() {
       )}
     </div>
   );
+}
+
+/** 鏡頭平滑移向附身的英雄；沒有附身（或切到全景）時平滑拉回全景 */
+function updateCamera(world: World, cam: Camera | null, follow: boolean, zoom: number): Camera | null {
+  const hero = possessedHero(world);
+  const ease = 0.15;
+  if (hero && follow) {
+    const from = cam ?? { x: world.width / 2, y: world.height / 2, zoom: 1 };
+    return clampCamera(world, {
+      x: from.x + (hero.x - from.x) * ease,
+      y: from.y + (hero.y - from.y) * ease,
+      zoom: from.zoom + (zoom - from.zoom) * ease,
+    });
+  }
+  if (!cam) return null;
+  const next = {
+    x: cam.x + (world.width / 2 - cam.x) * ease,
+    y: cam.y + (world.height / 2 - cam.y) * ease,
+    zoom: cam.zoom + (1 - cam.zoom) * ease,
+  };
+  return next.zoom < 1.01 ? null : clampCamera(world, next);
 }
 
 function cursorFor(world: World, power: PowerId | null, mouse: { x: number; y: number } | null): PowerCursor | null {

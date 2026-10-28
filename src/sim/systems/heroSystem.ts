@@ -76,6 +76,9 @@ export function promote(world: World, u: Unit, path: HeroPath): void {
     summonCd: SUMMON_INTERVAL / 2,
     possessed: false,
     everPossessed: false,
+    rally: false,
+    streak: 0,
+    lastKillAt: -9999,
     nextCrit: false,
     rageUntil: 0,
     promotedAt: world.tick,
@@ -150,8 +153,32 @@ export function gainXp(world: World, u: Unit, xp: number): void {
   }
 }
 
+/** 往上飄的字：傷害數字、連斬（純視覺） */
+export function floatText(world: World, x: number, y: number, text: string, color: string, size = 10, ttl = 12): void {
+  if (world.effects.length > 400) return;
+  world.effects.push({ x1: x, y1: y, x2: x, y2: y, ttl, maxTtl: ttl, color, text, size });
+}
+
+const STREAK_WINDOW = 150;
+const STREAK_NAMES: Record<number, string> = { 2: '雙殺', 3: '三連斬', 5: '五連斬！', 8: '殺神降臨！' };
+
+/** 英雄短時間內連續擊殺 */
+function addStreak(world: World, u: Unit): void {
+  const h = u.hero!;
+  h.streak = world.tick - h.lastKillAt <= STREAK_WINDOW ? h.streak + 1 : 1;
+  h.lastKillAt = world.tick;
+  const name = STREAK_NAMES[h.streak];
+  if (!name) return;
+  floatText(world, u.x, u.y - 1, name, '#ffb347', h.streak >= 5 ? 18 : 14, 24);
+  if (h.streak >= 3) {
+    addDeed(u, world, `${name}（${h.streak} 連斬）`);
+    if (h.streak >= 5 || h.possessed) logEvent(world, 'hero', `🔥 ${heroLabel(u)} ${name}`, u.factionId);
+  }
+}
+
 /** 擊殺時：英雄（或召喚物的主人）獲得經驗，戰士可能晉升 */
 export function onKill(world: World, killer: Unit, victim: Unit): void {
+  if (killer.hero) addStreak(world, killer);
   const xp = victim.hero ? 25 : victim.monster ? 30 : 10;
   const owner = killer.summonedBy !== undefined ? world.unitMap.get(killer.summonedBy) : killer;
   if (owner?.hero && owner.hp > 0) {
@@ -365,7 +392,75 @@ export function possessedHero(world: World): Unit | undefined {
   return world.units.find((u) => u.hp > 0 && u.hero?.possessed);
 }
 
+/** 跟隨我小隊的人數上限與招募範圍 */
+export const SQUAD_SIZE = 10;
+const SQUAD_RANGE = 8;
+
+export function squadOf(world: World, hero: Unit): Unit[] {
+  return world.units.filter((u) => u.hp > 0 && u.followHero === hero.id);
+}
+
+/** 開關「跟隨我」：附近的己方戰士加入小隊（一般士兵、不含英雄、怪物與召喚物） */
+export function setRally(world: World, hero: Unit, on: boolean): void {
+  if (!hero.hero) return;
+  hero.hero.rally = on;
+  if (!on) {
+    for (const u of squadOf(world, hero)) u.followHero = undefined;
+    return;
+  }
+  recruitSquad(world, hero);
+  logEvent(world, 'hero', `🚩 ${heroLabel(hero)}：「跟隨我！」${squadOf(world, hero).length} 名戰士集結`, hero.factionId);
+}
+
+function recruitSquad(world: World, hero: Unit): void {
+  let count = squadOf(world, hero).length;
+  const candidates = world.units
+    .filter(
+      (u) =>
+        count < SQUAD_SIZE && u.hp > 0 && u.factionId === hero.factionId && u.role === 'warrior' && !u.hero &&
+        !u.monster && u.summonedBy === undefined && u.followHero === undefined &&
+        dist(u.x, u.y, hero.x, hero.y) <= SQUAD_RANGE,
+    )
+    .sort((a, b) => dist(a.x, a.y, hero.x, hero.y) - dist(b.x, b.y, hero.x, hero.y));
+  for (const u of candidates) {
+    if (count >= SQUAD_SIZE) break;
+    u.followHero = hero.id;
+    count++;
+  }
+}
+
+/**
+ * 小隊成員的行動：英雄在打誰就一起打，否則在英雄身邊排成陣型跟著走。
+ * 回傳 false 代表已不再跟隨（英雄死了或解除附身）。
+ */
+export function followerThink(world: World, u: Unit): boolean {
+  const hero = u.followHero !== undefined ? world.unitMap.get(u.followHero) : undefined;
+  if (!hero || hero.hp <= 0 || !hero.hero?.possessed || !hero.hero.rally) {
+    u.followHero = undefined;
+    return false;
+  }
+  const ha = hero.action;
+  if (ha.type === 'attackUnit' || ha.type === 'attackBuilding') {
+    if (u.action.type !== ha.type || (u.action as { targetId: number }).targetId !== ha.targetId) {
+      u.action = { ...ha };
+      u.path.length = 0;
+    }
+    return true;
+  }
+  // 附近有敵人就自己還手
+  const foe = enemiesNear(world, u.factionId, u.x, u.y, 2.5)[0];
+  if (foe) {
+    u.action = { type: 'attackUnit', targetId: foe.id };
+    return true;
+  }
+  // 以英雄為中心排成一圈
+  const angle = ((u.id * 137) % 360) * (Math.PI / 180);
+  u.action = { type: 'guard', x: hero.x + Math.cos(angle) * 1.8, y: hero.y + Math.sin(angle) * 1.8 };
+  return true;
+}
+
 export function possess(world: World, u: Unit): void {
+  release(world);
   for (const o of world.units) if (o.hero) o.hero.possessed = false;
   if (u.hero && u.hp > 0) {
     u.hero.possessed = true;
@@ -376,6 +471,7 @@ export function possess(world: World, u: Unit): void {
 export function release(world: World): void {
   const u = possessedHero(world);
   if (u?.hero) {
+    setRally(world, u, false);
     u.hero.possessed = false;
     if (u.hero.choice) autoChoose(world, u);
   }
@@ -444,6 +540,7 @@ export function updateHeroes(world: World): void {
       }
     }
     if (!h.possessed && h.skillCd === 0 && aiWantsSkill(world, u)) useSkill(world, u);
+    if (h.possessed && h.rally && world.tick % 10 === 0) recruitSquad(world, u);
 
     // 附身的英雄：站著不動時，敵人靠近會自動還手
     if (h.possessed && (u.action.type === 'idle' || (u.action.type === 'guard' && dist(u.x, u.y, u.action.x, u.action.y) < 0.6))) {

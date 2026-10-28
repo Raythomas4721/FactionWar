@@ -73,6 +73,7 @@ export function createBlankWorld(seed: number, width = MAP_W, height = MAP_H, ru
     legends: [],
     activeEvents: [],
     nextEventAt: 0,
+    shake: 0,
   };
 }
 
@@ -212,6 +213,7 @@ export function step(world: World): void {
 
   cleanup(world);
   for (const e of world.effects) e.ttl--;
+  world.shake = Math.max(0, world.shake - 0.4);
   world.effects = world.effects.filter((e) => e.ttl > 0);
   checkVictory(world);
   evaluateTrial(world);

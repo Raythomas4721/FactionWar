@@ -8,6 +8,33 @@ export const TILE_PX = 12;
 
 export type Selection = { kind: 'unit'; id: number } | { kind: 'building'; id: number };
 
+/** 鏡頭：畫面中心（格）與放大倍率 */
+export interface Camera {
+  x: number;
+  y: number;
+  zoom: number;
+}
+
+/** 鏡頭不能拍到地圖外面 */
+export function clampCamera(world: World, cam: Camera): Camera {
+  const halfW = world.width / (2 * cam.zoom);
+  const halfH = world.height / (2 * cam.zoom);
+  return {
+    zoom: cam.zoom,
+    x: Math.min(world.width - halfW, Math.max(halfW, cam.x)),
+    y: Math.min(world.height - halfH, Math.max(halfH, cam.y)),
+  };
+}
+
+/** 畫布上的相對位置（0~1）→ 地圖格子座標 */
+export function screenToTile(world: World, cam: Camera | null, fx: number, fy: number): { x: number; y: number } {
+  if (!cam) return { x: fx * world.width, y: fy * world.height };
+  return {
+    x: cam.x + ((fx - 0.5) * world.width) / cam.zoom,
+    y: cam.y + ((fy - 0.5) * world.height) / cam.zoom,
+  };
+}
+
 /** 選了神力時，滑鼠位置的預覽：範圍圈，或要被施法的陣營 */
 export interface PowerCursor {
   x: number;
@@ -52,7 +79,7 @@ export class CanvasRenderer {
 
   constructor(private canvas: HTMLCanvasElement) {}
 
-  draw(world: World, selection: Selection | null, cursor: PowerCursor | null = null): void {
+  draw(world: World, selection: Selection | null, cursor: PowerCursor | null = null, camera: Camera | null = null): void {
     const T = TILE_PX;
     const w = world.width * T;
     const h = world.height * T;
@@ -63,8 +90,20 @@ export class CanvasRenderer {
     }
     const ctx = this.canvas.getContext('2d')!;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = '#0e1215';
+    ctx.fillRect(0, 0, w, h);
 
     if (this.terrainVersion !== world.terrainVersion || this.terrainSeed !== world.seed) this.drawTerrain(world);
+    // 震動只是畫面效果，用 Math.random 不影響模擬
+    const sx = world.shake > 0 ? (Math.random() - 0.5) * world.shake * 2 : 0;
+    const sy = world.shake > 0 ? (Math.random() - 0.5) * world.shake * 2 : 0;
+    if (camera) {
+      ctx.translate(w / 2 + sx, h / 2 + sy);
+      ctx.scale(camera.zoom, camera.zoom);
+      ctx.translate(-camera.x * T, -camera.y * T);
+    } else {
+      ctx.translate(sx, sy);
+    }
     ctx.drawImage(this.terrain, 0, 0, w, h);
 
     // 建築
@@ -98,6 +137,7 @@ export class CanvasRenderer {
     // 箭矢軌跡與神力光環
     for (const e of world.effects) {
       const life = e.ttl / e.maxTtl;
+      if (e.text) continue;
       ctx.globalAlpha = life;
       ctx.strokeStyle = e.color;
       ctx.beginPath();
@@ -118,7 +158,29 @@ export class CanvasRenderer {
     ctx.globalAlpha = 1;
 
     for (const u of world.units) this.drawUnit(ctx, world, u, selection);
+    this.drawFloaters(ctx, world, camera);
     if (cursor) this.drawCursor(ctx, world, cursor);
+  }
+
+  /** 往上飄的傷害數字與連斬字；放大時字不跟著變得太大 */
+  private drawFloaters(ctx: CanvasRenderingContext2D, world: World, camera: Camera | null) {
+    const T = TILE_PX;
+    const scale = camera ? Math.max(0.6, 1 / Math.sqrt(camera.zoom)) : 1;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(0,0,0,0.75)';
+    for (const e of world.effects) {
+      if (!e.text) continue;
+      const life = e.ttl / e.maxTtl;
+      const y = (e.y1 - (1 - life) * 1.4) * T;
+      ctx.globalAlpha = Math.min(1, life * 1.6);
+      ctx.font = `bold ${Math.round((e.size ?? 10) * scale * (life > 0.85 ? 1.25 : 1))}px "Microsoft JhengHei", sans-serif`;
+      ctx.strokeText(e.text, e.x1 * T, y);
+      ctx.fillStyle = e.color;
+      ctx.fillText(e.text, e.x1 * T, y);
+    }
+    ctx.globalAlpha = 1;
   }
 
   private drawCursor(ctx: CanvasRenderingContext2D, world: World, c: PowerCursor) {
@@ -266,6 +328,13 @@ export class CanvasRenderer {
       ctx.fill();
     }
     ctx.globalAlpha = 1;
+    if (u.followHero !== undefined) {
+      // 跟隨英雄的小隊成員：腳下一個金點
+      ctx.fillStyle = '#ffd75e';
+      ctx.beginPath();
+      ctx.arc(x, y + 6, 1.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
     if (u.summonedBy !== undefined) {
       ctx.strokeStyle = f.color;
       ctx.lineWidth = 1;
