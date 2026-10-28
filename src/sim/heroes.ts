@@ -18,8 +18,28 @@ export interface PathDef {
   /** 英雄稱號 */
   title: string;
   desc: string;
-  skill: { name: string; desc: string; cooldown: number };
+  skill: SkillDef;
+  /** Lv3 解鎖的第二技能 */
+  skill2: SkillDef;
+  /** Lv5 解鎖的大招 */
+  ult: SkillDef;
   talents: TalentId[];
+}
+
+export interface SkillDef {
+  name: string;
+  desc: string;
+  cooldown: number;
+}
+
+/** 技能欄位：1 = Q、2 = W（Lv3）、3 = E 大招（Lv5） */
+export type SkillSlot = 1 | 2 | 3;
+export const SKILL_UNLOCK: Record<SkillSlot, number> = { 1: 1, 2: 3, 3: 5 };
+export const SKILL_KEYS: Record<SkillSlot, string> = { 1: 'Q', 2: 'W', 3: 'E' };
+
+export function skillOf(path: HeroPath, slot: SkillSlot): SkillDef {
+  const p = PATHS[path];
+  return slot === 1 ? p.skill : slot === 2 ? p.skill2 : p.ult;
 }
 
 export const PATHS: Record<HeroPath, PathDef> = {
@@ -27,30 +47,40 @@ export const PATHS: Record<HeroPath, PathDef> = {
     id: 'crit', name: '暴擊流', icon: '⚔', title: '疾影',
     desc: '15% 暴擊率、暴擊 ×2；生命 -15%',
     skill: { name: '致命一擊', desc: '下一擊必定暴擊，傷害 ×3', cooldown: 300 },
+    skill2: { name: '影襲', desc: '瞬移到 6 格內最近的敵人身旁，下一擊必定暴擊', cooldown: 400 },
+    ult: { name: '千刃', desc: '8 秒內每一擊同時砍中周圍的敵人，暴擊率 +30%', cooldown: 900 },
     talents: ['critChance', 'critDamage', 'glass'],
   },
   venom: {
     id: 'venom', name: '毒傷流', icon: '☠', title: '毒牙',
     desc: '攻擊疊加劇毒（持續傷害，越久越痛）；直接傷害 -15%',
     skill: { name: '毒霧', desc: '周圍 3 格內的敵人各中 2 層毒', cooldown: 400 },
+    skill2: { name: '劇毒新星', desc: '周圍 4 格內的敵人各中 3 層毒並立刻受到傷害', cooldown: 450 },
+    ult: { name: '萬毒噬心', desc: '引爆 10 格內所有中毒的敵人：剩下的毒傷一次爆發 ×2', cooldown: 1000 },
     talents: ['venomStacks', 'venomPotency', 'plagueBearer'],
   },
   summon: {
     id: 'summon', name: '召喚流', icon: '✦', title: '喚靈者',
     desc: '定期召喚援兵；本身傷害 -30%',
     skill: { name: '群召', desc: '立刻召喚 2 名援兵', cooldown: 500 },
+    skill2: { name: '靈魂鏈結', desc: '所有召喚物生命全滿，10 秒內攻速加倍', cooldown: 500 },
+    ult: { name: '亡者大軍', desc: '一次召喚 5 名援兵（不受數量上限）', cooldown: 1200 },
     talents: ['moreSummons', 'strongSummons', 'longSummons'],
   },
   berserk: {
     id: 'berserk', name: '狂戰流', icon: '🔥', title: '狂戰士',
     desc: '生命越低，攻擊越高（瀕死時傷害翻倍）',
     skill: { name: '狂暴', desc: '15 秒內攻速加倍，造成傷害的 30% 回復生命', cooldown: 450 },
+    skill2: { name: '旋風斬', desc: '對周圍 2 格內所有敵人造成一次重擊', cooldown: 350 },
+    ult: { name: '不死之怒', desc: '8 秒內生命不會低於 1，同時進入狂暴', cooldown: 1100 },
     talents: ['bloodlust', 'lifesteal', 'unstoppable'],
   },
   guardian: {
     id: 'guardian', name: '守護流', icon: '🛡', title: '守護者',
     desc: '光環讓周圍隊友 +10% 暴擊率、+2 減傷；本身傷害 -20%、生命 +20%',
     skill: { name: '守護之光', desc: '光環內隊友回復 30% 生命、士氣全滿', cooldown: 500 },
+    skill2: { name: '戰吼', desc: '光環內隊友 10 秒內攻速加倍、士氣全滿', cooldown: 450 },
+    ult: { name: '神聖庇護', desc: '光環內隊友 8 秒內受到的傷害減半', cooldown: 1100 },
     talents: ['wideAura', 'critAura', 'ironAura'],
   },
 };

@@ -158,8 +158,30 @@ export class CanvasRenderer {
     ctx.globalAlpha = 1;
 
     for (const u of world.units) this.drawUnit(ctx, world, u, selection);
+    this.drawNemeses(ctx, world);
     this.drawFloaters(ctx, world, camera);
     if (cursor) this.drawCursor(ctx, world, cursor);
+  }
+
+  /** 宿敵頭上畫紅色骷髏，仇恨越高越大 */
+  private drawNemeses(ctx: CanvasRenderingContext2D, world: World) {
+    const T = TILE_PX;
+    const grudge = new Map<number, number>();
+    for (const f of world.factions) for (const n of f.nemeses) grudge.set(n.unitId, (grudge.get(n.unitId) ?? 0) + n.grudge);
+    if (!grudge.size) return;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (const [id, g] of grudge) {
+      const u = world.unitMap.get(id);
+      if (!u || u.hp <= 0 || u.underground) continue;
+      const size = Math.min(16, 9 + g / 25);
+      ctx.font = `bold ${size}px sans-serif`;
+      ctx.fillStyle = '#ff4d4d';
+      ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+      ctx.lineWidth = 2.5;
+      ctx.strokeText('☠', u.x * T + 8, u.y * T - 9);
+      ctx.fillText('☠', u.x * T + 8, u.y * T - 9);
+    }
   }
 
   /** 往上飄的傷害數字與連斬字；放大時字不跟著變得太大 */

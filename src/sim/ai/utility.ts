@@ -4,7 +4,7 @@ import { dist } from '../math';
 import { carryOf } from '../stats';
 import type { Faction, ResourceKind, Unit, UnitAction, World } from '../types';
 import {
-  areHostile, canAfford, centerOf, enemiesNear, factionBuildings, hasCompleted, hqOf, nearestEnemyUnit,
+  areHostile, canAfford, centerOf, enemiesNear, factionBuildings, hasCompleted, hqOf, isTargetable, nearestEnemyUnit,
 } from '../util';
 import { cancelCraft, isItemUnlocked, startCraft } from '../systems/crafting';
 import { RESOURCE_TILE, findNearestResource } from '../systems/economy';
@@ -125,6 +125,14 @@ function warriorOptions(
     if (cur && cur.hp > 0) add(76, u.action);
   }
   if (enemy) add(72 - enemyDist * 2, { type: 'attackUnit', targetId: enemy.id });
+  // 宿敵就在眼前：血債血償
+  for (const n of f.nemeses) {
+    const foe = world.unitMap.get(n.unitId);
+    if (foe && isTargetable(foe, u.x, u.y) && dist(u.x, u.y, foe.x, foe.y) <= SIGHT) {
+      add(80 + Math.min(10, n.grudge / 20), { type: 'attackUnit', targetId: foe.id });
+      break;
+    }
+  }
 
   const up = bestArmoryUpgrade(f, u);
   if (up && !enemy) add(55 + Math.min(up.gain * 3, 20), { type: 'equip' });

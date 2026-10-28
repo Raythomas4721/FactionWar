@@ -9,6 +9,7 @@ import {
 } from '../util';
 import { adjustRelation } from './treaties';
 import { revealAfterAttack } from './troopActions';
+import { forgetNemesis, onNemesisKill } from './nemesis';
 import { infect, infectionRisk } from './health';
 import { RACES } from '../races';
 import { claimLair, hasRelic, lairOfBuilding } from './neutral';
@@ -56,7 +57,10 @@ const attackCooldown = (world: World, u: Unit) =>
 
 export function damageUnit(world: World, target: Unit, dmg: number, byFaction: number, byLabel: string, byUnit?: Unit): void {
   if (target.hp <= 0) return;
-  target.hp -= dmg * heroDamageTakenMult(target);
+  const shielded = target.shieldUntil !== undefined && world.tick < target.shieldUntil ? 0.5 : 1;
+  target.hp -= dmg * heroDamageTakenMult(target) * shielded;
+  // 不死之怒：生命不會低於 1
+  if (target.hp <= 0 && target.hero && world.tick < target.hero.undyingUntil) target.hp = 1;
   if (!RACES[target.race].fearless) {
     const iron = hasRelic(world, target.factionId, 'iron') ? 0.5 : 1;
     target.morale = clamp(target.morale - dmg * 0.8 * moraleLossMult(target.attrs) * iron, 0, 100);
@@ -64,6 +68,8 @@ export function damageUnit(world: World, target: Unit, dmg: number, byFaction: n
   if (target.hp > 0) return;
 
   onPoisonedDeath(world, target);
+  // 宿敵判定要在 handleDeath 之前：handleDeath 會把死者從仇恨名單中移除
+  if (byUnit) onNemesisKill(world, byUnit, target);
   handleDeath(world, target, `被 ${byLabel} 擊殺`);
   if (byUnit) onKill(world, byUnit, target);
   if (byFaction >= 0) {
@@ -89,6 +95,7 @@ export function damageUnit(world: World, target: Unit, dmg: number, byFaction: n
 export function handleDeath(world: World, target: Unit, cause = '戰死'): void {
   world.factions[target.factionId].stats.deaths++;
   if (target.hero) onHeroDeath(world, target, cause);
+  forgetNemesis(world, target.id);
   for (const ally of world.units) {
     if (ally.factionId === target.factionId && ally.hp > 0 && !RACES[ally.race].fearless && dist(ally.x, ally.y, target.x, target.y) < 5) {
       ally.morale = clamp(ally.morale - 8 * moraleLossMult(ally.attrs), 0, 100);
@@ -173,6 +180,13 @@ export function strikeUnit(world: World, u: Unit, target: Unit): void {
   const dmg = mitigatedDamage(raw, target.attrs, armorOf(target) + auraBonus(world, target).armor, hasTrait(u.weapon, 'pierce'));
   damageUnit(world, target, dmg, u.factionId, unitLabel(u), u);
   onHeroHit(world, u, target, dmg);
+  // 千刃：同時砍中目標周圍的敵人
+  if (u.hero && world.tick < u.hero.bladeUntil) {
+    for (const e of world.units) {
+      if (e === target || e.hp <= 0 || !areHostile(world, u.factionId, e.factionId)) continue;
+      if (dist(e.x, e.y, target.x, target.y) <= 1.8) damageUnit(world, e, dmg * 0.6, u.factionId, unitLabel(u), u);
+    }
+  }
   // 打擊感：英雄相關的傷害與所有暴擊會跳數字
   if (hero.crit || u.hero || target.hero) {
     const color = hero.crit ? '#ffe14d' : target.hero ? '#ff6b6b' : '#ffffff';

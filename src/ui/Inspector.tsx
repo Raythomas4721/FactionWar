@@ -16,6 +16,7 @@ import { inventionChance } from '../sim/systems/invention';
 import { guardiansOf, lairOfBuilding } from '../sim/systems/neutral';
 import { MONSTERS, treasureLabel } from '../sim/lairs';
 import { HeroCard } from './HeroCard';
+import { nemesisRecords } from '../sim/systems/nemesis';
 
 const ATTR_HINTS: Record<string, string> = {
   str: '近戰傷害、採集量、建造速度',
@@ -106,6 +107,11 @@ function UnitView({ world, u }: { world: World; u: Unit }) {
         <span className="muted">出生 {formatTime(u.bornAt)}</span>
       </div>
       <div className="iv-doing">{u.monster ? '守護巢穴中的中立怪物' : `正在：${describeAction(world, u)}`}</div>
+      {nemesisRecords(world, u.id).map(({ factionId, nemesis }) => (
+        <div key={factionId} className="nemesis-note">
+          ☠ {world.factions[factionId].name}的宿敵（仇恨 {nemesis.grudge}）：殺死了 {nemesis.victims.join('、')}
+        </div>
+      ))}
       {u.hero && <HeroCard world={world} u={u} />}
       {u.summonedBy !== undefined && (
         <div className="troop-desc">

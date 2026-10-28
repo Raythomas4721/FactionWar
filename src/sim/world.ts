@@ -100,7 +100,7 @@ export function createFaction(world: World, race: RaceId, races: RaceId[]): Fact
     relations: races.map((other) => (other === race ? 100 : RIVALRY[race][other])),
     stats: {
       kills: 0, deaths: 0, crafted: 0, built: 0, trained: 0,
-      infections: 0, diseaseDeaths: 0, starved: 0, recruited: 0, defected: 0, treaties: 0, inventions: 0, heroes: 0, bestItem: null,
+      infections: 0, diseaseDeaths: 0, starved: 0, recruited: 0, defected: 0, treaties: 0, inventions: 0, heroes: 0, revenges: 0, bestItem: null,
     },
     nextAiAt: 1 + world.factions.length * 5,
     nextDiplomacyAt: 600 + world.factions.length * 50,
@@ -109,6 +109,7 @@ export function createFaction(world: World, race: RaceId, races: RaceId[]): Fact
     neutral: race === 'beast',
     relics: [],
     fallReason: null,
+    nemeses: [],
     attrBonus: { str: 0, agi: 0, int: 0, con: 0, cha: 0 },
   };
   world.factions.push(f);

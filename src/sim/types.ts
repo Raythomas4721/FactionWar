@@ -25,6 +25,14 @@ export interface Hero {
   /** 升級時等待玩家二選一的天賦（AI 陣營會自動選） */
   choice: TalentId[] | null;
   skillCd: number;
+  /** 第二技能（W）與大招（E）的冷卻 */
+  skill2Cd: number;
+  ultCd: number;
+  /** 千刃（範圍攻擊）與不死之怒的結束時間 */
+  bladeUntil: number;
+  undyingUntil: number;
+  /** 上次提醒「宿敵出現」的時間 */
+  nemesisAlertAt: number;
   summonCd: number;
   /** 被玩家附身操控中 */
   possessed: boolean;
@@ -40,6 +48,18 @@ export interface Hero {
   promotedAt: number;
   /** 英雄事蹟 */
   deeds: string[];
+}
+
+/** 宿敵：殺死過這個陣營英雄的敵人 */
+export interface Nemesis {
+  unitId: number;
+  factionId: number;
+  name: string;
+  /** 仇恨值：殺英雄 +50、殺族人 +2 */
+  grudge: number;
+  /** 被牠殺死的英雄 */
+  victims: string[];
+  since: number;
 }
 
 /** 英雄榜：戰死的英雄 */
@@ -163,6 +183,10 @@ export interface Unit {
   poison?: { stacks: number; until: number; byUnit: number; byFaction: number; potency: number };
   /** 跟隨的英雄 id（「跟隨我」小隊） */
   followHero?: number;
+  /** 戰吼／靈魂鏈結：攻速加倍到這個 tick */
+  hasteUntil?: number;
+  /** 神聖庇護：受到傷害減半到這個 tick */
+  shieldUntil?: number;
   /** 召喚物：召喚者 id 與消失時間 */
   summonedBy?: number;
   expiresAt?: number;
@@ -212,6 +236,8 @@ export interface FactionStats {
   inventions: number;
   /** 晉升過的英雄數 */
   heroes: number;
+  /** 手刃宿敵的次數 */
+  revenges: number;
   bestItem: { label: string; power: number } | null;
 }
 
@@ -250,6 +276,8 @@ export interface Faction {
   relics: RelicId[];
   /** 覆滅的原因（戰報用） */
   fallReason: string | null;
+  /** 這個陣營記恨的宿敵 */
+  nemeses: Nemesis[];
   /** 賢者秘藥帶來的屬性加成（現有與之後出生的族人都有） */
   attrBonus: Attributes;
 }

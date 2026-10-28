@@ -1,16 +1,17 @@
 import {
   AURA_RADIUS, BASE_CRIT_MULT, GENERIC_TALENTS, MAX_HEROES, MAX_LEVEL, PATHS, PATH_AFFINITY, PATH_ORDER,
-  POISON_DPS, POISON_TICKS, PROMOTE_KILLS, SUMMON_INTERVAL, SUMMON_LIFETIME, SUMMON_NAMES, TALENTS, VENOM_BURST,
-  XP_LEVELS, type HeroPath, type TalentId,
+  POISON_DPS, POISON_TICKS, PROMOTE_KILLS, SKILL_UNLOCK, SUMMON_INTERVAL, SUMMON_LIFETIME, SUMMON_NAMES, TALENTS,
+  VENOM_BURST, XP_LEVELS, skillOf, type HeroPath, type SkillSlot, type TalentId,
 } from '../heroes';
 import { dist } from '../math';
 import { RACES } from '../races';
 import { maxHpOf } from '../stats';
-import type { Building, Unit, World } from '../types';
+import type { Building, Hero, Unit, World } from '../types';
 import {
   areHostile, distToBuilding, enemiesNear, isTargetable, logEvent, spawnUnit, unitLabel,
 } from '../util';
 import { damageUnit } from './combat';
+import { nemesisAlert } from './nemesis';
 
 const has = (u: Unit, t: TalentId) => !!u.hero?.talents.includes(t);
 
@@ -73,6 +74,11 @@ export function promote(world: World, u: Unit, path: HeroPath): void {
     talents: [],
     choice: null,
     skillCd: 0,
+    skill2Cd: 0,
+    ultCd: 0,
+    bladeUntil: 0,
+    undyingUntil: 0,
+    nemesisAlertAt: -9999,
     summonCd: SUMMON_INTERVAL / 2,
     possessed: false,
     everPossessed: false,
@@ -149,7 +155,10 @@ export function gainXp(world: World, u: Unit, xp: number): void {
     h.choice = talentOptions(world, u);
     const playerDecides = h.possessed || world.factions[u.factionId].playerControlled;
     if (!playerDecides) autoChoose(world, u);
-    logEvent(world, 'hero', `⭐ ${heroLabel(u)} 升到 Lv${h.level}${playerDecides ? '，等待你選擇天賦' : ''}`, u.factionId);
+    const unlocked = ([2, 3] as SkillSlot[]).find((slot) => SKILL_UNLOCK[slot] === h.level);
+    const unlockNote = unlocked ? `，解鎖${unlocked === 3 ? '大招' : '第二技能'}「${skillOf(h.path, unlocked).name}」` : '';
+    logEvent(world, 'hero', `⭐ ${heroLabel(u)} 升到 Lv${h.level}${unlockNote}${playerDecides ? '，等待你選擇天賦' : ''}`, u.factionId);
+    if (unlocked) floatText(world, u.x, u.y - 1.2, unlocked === 3 ? '大招解鎖！' : '新技能！', '#ff7ad9', 13, 24);
   }
 }
 
@@ -243,6 +252,7 @@ export function attackModifiers(world: World, u: Unit, target: Unit): { mult: nu
   const h = u.hero;
   if (h) {
     if (h.path === 'crit') critChance += 0.15 + (has(u, 'critChance') ? 0.1 : 0);
+    if (world.tick < h.bladeUntil) critChance += 0.3;
     if (has(u, 'critDamage')) critMult += 0.75;
     if (has(u, 'glass')) mult *= 1.25;
     if (has(u, 'power')) mult *= 1.2;
@@ -269,6 +279,7 @@ export function heroCooldownMult(world: World, u: Unit): number {
   let m = 1;
   if (has(u, 'haste')) m *= 0.8;
   if (u.hero && world.tick < u.hero.rageUntil) m *= 0.5;
+  if (u.hasteUntil !== undefined && world.tick < u.hasteUntil) m *= 0.5;
   return m;
 }
 
@@ -338,52 +349,156 @@ const summonsOf = (world: World, hero: Unit) => world.units.filter((s) => s.hp >
 
 // ───────────── 技能 ─────────────
 
-export function useSkill(world: World, u: Unit): boolean {
+function cooldownOfSlot(h: Hero, slot: SkillSlot): number {
+  return slot === 1 ? h.skillCd : slot === 2 ? h.skill2Cd : h.ultCd;
+}
+
+function setCooldown(h: Hero, slot: SkillSlot, cd: number): void {
+  if (slot === 1) h.skillCd = cd;
+  else if (slot === 2) h.skill2Cd = cd;
+  else h.ultCd = cd;
+}
+
+/** 技能是否已解鎖且冷卻完成 */
+export function skillReady(u: Unit, slot: SkillSlot): boolean {
   const h = u.hero;
-  if (!h || h.skillCd > 0 || u.hp <= 0) return false;
-  const def = PATHS[h.path];
-  switch (h.path) {
-    case 'crit':
+  return !!h && h.level >= SKILL_UNLOCK[slot] && cooldownOfSlot(h, slot) <= 0;
+}
+
+export function skillCooldown(u: Unit, slot: SkillSlot): number {
+  return u.hero ? cooldownOfSlot(u.hero, slot) : 0;
+}
+
+const auraRadius = (u: Unit) => AURA_RADIUS + (has(u, 'wideAura') ? 2 : 0);
+const alliesNear = (world: World, u: Unit, r: number) =>
+  world.units.filter((a) => a.hp > 0 && a.factionId === u.factionId && dist(a.x, a.y, u.x, u.y) <= r);
+
+/** 施放技能：slot 1 = Q、2 = W（Lv3）、3 = E 大招（Lv5） */
+export function useSkill(world: World, u: Unit, slot: SkillSlot = 1): boolean {
+  const h = u.hero;
+  if (!h || u.hp <= 0 || !skillReady(u, slot)) return false;
+  const def = skillOf(h.path, slot);
+  const key = `${h.path}:${slot}`;
+  switch (key) {
+    // ── Q ──
+    case 'crit:1':
       h.nextCrit = true;
       break;
-    case 'venom':
+    case 'venom:1':
       for (const e of enemiesNear(world, u.factionId, u.x, u.y, 3)) applyPoison(world, u, e, 2);
       break;
-    case 'summon':
+    case 'summon:1':
       summon(world, u);
       summon(world, u);
       break;
-    case 'berserk':
+    case 'berserk:1':
       h.rageUntil = world.tick + 150;
       break;
-    case 'guardian': {
-      const r = AURA_RADIUS + (has(u, 'wideAura') ? 2 : 0);
-      for (const a of world.units) {
-        if (a.hp <= 0 || a.factionId !== u.factionId || dist(a.x, a.y, u.x, u.y) > r) continue;
+    case 'guardian:1':
+      for (const a of alliesNear(world, u, auraRadius(u))) {
         a.hp = Math.min(a.maxHp, a.hp + a.maxHp * 0.3);
         a.morale = 100;
       }
       break;
+    // ── W ──
+    case 'crit:2': {
+      const target = enemiesNear(world, u.factionId, u.x, u.y, 6).sort(
+        (a, b) => dist(a.x, a.y, u.x, u.y) - dist(b.x, b.y, u.x, u.y),
+      )[0];
+      if (!target) return false;
+      world.effects.push({ x1: u.x, y1: u.y, x2: target.x, y2: target.y, ttl: 6, maxTtl: 6, color: '#c8a2ff' });
+      u.x = target.x + (u.x > target.x ? 0.8 : -0.8);
+      u.y = target.y;
+      u.path.length = 0;
+      h.nextCrit = true;
+      u.cooldown = 0;
+      u.action = { type: 'attackUnit', targetId: target.id };
+      break;
     }
+    case 'venom:2':
+      for (const e of enemiesNear(world, u.factionId, u.x, u.y, 4)) {
+        applyPoison(world, u, e, 3);
+        damageUnit(world, e, 4, u.factionId, heroLabel(u), u);
+      }
+      break;
+    case 'summon:2':
+      for (const s of summonsOf(world, u)) {
+        s.hp = s.maxHp;
+        s.hasteUntil = world.tick + 100;
+      }
+      break;
+    case 'berserk:2': {
+      const dmg = (u.attrs.str * 0.5 + 8) * 1.2;
+      for (const e of enemiesNear(world, u.factionId, u.x, u.y, 2)) {
+        damageUnit(world, e, dmg, u.factionId, heroLabel(u), u);
+        floatText(world, e.x, e.y - 0.4, String(Math.round(dmg)), '#ff9a3c', 11);
+      }
+      break;
+    }
+    case 'guardian:2':
+      for (const a of alliesNear(world, u, auraRadius(u))) {
+        a.hasteUntil = world.tick + 100;
+        a.morale = 100;
+      }
+      break;
+    // ── E 大招 ──
+    case 'crit:3':
+      h.bladeUntil = world.tick + 80;
+      break;
+    case 'venom:3': {
+      for (const e of enemiesNear(world, u.factionId, u.x, u.y, 10)) {
+        const p = e.poison;
+        if (!p || world.tick >= p.until) continue;
+        const burst = p.stacks * POISON_DPS * p.potency * (p.until - world.tick) * 2;
+        e.poison = undefined;
+        damageUnit(world, e, burst, u.factionId, heroLabel(u), u);
+        floatText(world, e.x, e.y - 0.4, `毒爆 ${Math.round(burst)}`, '#7dff5a', 13);
+      }
+      break;
+    }
+    case 'summon:3':
+      for (let i = 0; i < 5; i++) summon(world, u);
+      break;
+    case 'berserk:3':
+      h.undyingUntil = world.tick + 80;
+      h.rageUntil = world.tick + 80;
+      break;
+    case 'guardian:3':
+      for (const a of alliesNear(world, u, auraRadius(u))) a.shieldUntil = world.tick + 80;
+      break;
   }
-  h.skillCd = def.skill.cooldown;
-  world.effects.push({ x1: u.x, y1: u.y, x2: u.x, y2: u.y, ttl: 10, maxTtl: 10, radius: 2.5, color: '#ffd75e' });
-  if (h.possessed) logEvent(world, 'hero', `⚡ ${heroLabel(u)} 施展「${def.skill.name}」`, u.factionId);
+  setCooldown(h, slot, def.cooldown);
+  const color = slot === 3 ? '#ff7ad9' : slot === 2 ? '#7ad7ff' : '#ffd75e';
+  world.effects.push({ x1: u.x, y1: u.y, x2: u.x, y2: u.y, ttl: 10, maxTtl: 10, radius: slot === 3 ? 4 : 2.5, color });
+  if (slot === 3) floatText(world, u.x, u.y - 1.2, def.name, color, 15, 20);
+  if (h.possessed || slot === 3) logEvent(world, 'hero', `⚡ ${heroLabel(u)} 施展${slot === 3 ? '大招' : ''}「${def.name}」`, u.factionId);
   return true;
 }
 
-/** AI 什麼時候放技能 */
-function aiWantsSkill(world: World, u: Unit): boolean {
+/** AI 什麼時候放哪個技能（大招優先） */
+function aiPickSkill(world: World, u: Unit): SkillSlot | null {
   const h = u.hero!;
-  const near = enemiesNear(world, u.factionId, u.x, u.y, h.path === 'summon' ? 7 : 3.5).length;
-  if (h.path === 'guardian') {
-    const r = AURA_RADIUS;
-    const hurt = world.units.filter(
-      (a) => a.hp > 0 && a.factionId === u.factionId && dist(a.x, a.y, u.x, u.y) <= r && a.hp < a.maxHp * 0.6,
-    ).length;
-    return hurt >= 2;
-  }
-  return near >= (h.path === 'venom' ? 2 : 1);
+  const near = (r: number) => enemiesNear(world, u.factionId, u.x, u.y, r).length;
+  const hurtAllies = alliesNear(world, u, auraRadius(u)).filter((a) => a.hp < a.maxHp * 0.6).length;
+  const wants: Record<SkillSlot, boolean> = {
+    3: {
+      crit: near(2.5) >= 2,
+      venom: enemiesNear(world, u.factionId, u.x, u.y, 10).filter((e) => e.poison && world.tick < e.poison.until).length >= 3,
+      summon: near(7) >= 3,
+      berserk: u.hp < u.maxHp * 0.4 && near(3) >= 1,
+      guardian: near(5) >= 3,
+    }[h.path],
+    2: {
+      crit: near(6) >= 1 && near(1.5) === 0,
+      venom: near(4) >= 2,
+      summon: summonsOf(world, u).length >= 2 && near(7) >= 1,
+      berserk: near(2) >= 2,
+      guardian: near(5) >= 2,
+    }[h.path],
+    1: h.path === 'guardian' ? hurtAllies >= 2 : near(h.path === 'summon' ? 7 : 3.5) >= (h.path === 'venom' ? 2 : 1),
+  };
+  for (const slot of [3, 2, 1] as SkillSlot[]) if (wants[slot] && skillReady(u, slot)) return slot;
+  return null;
 }
 
 // ───────────── 附身 ─────────────
@@ -531,6 +646,8 @@ export function updateHeroes(world: World): void {
     const h = u.hero;
     if (!h) continue;
     if (h.skillCd > 0) h.skillCd--;
+    if (h.skill2Cd > 0) h.skill2Cd--;
+    if (h.ultCd > 0) h.ultCd--;
     if (h.path === 'summon') {
       if (h.summonCd > 0) h.summonCd--;
       const cap = 2 + (has(u, 'moreSummons') ? 1 : 0);
@@ -539,8 +656,12 @@ export function updateHeroes(world: World): void {
         h.summonCd = SUMMON_INTERVAL;
       }
     }
-    if (!h.possessed && h.skillCd === 0 && aiWantsSkill(world, u)) useSkill(world, u);
+    if (!h.possessed) {
+      const slot = aiPickSkill(world, u);
+      if (slot) useSkill(world, u, slot);
+    }
     if (h.possessed && h.rally && world.tick % 10 === 0) recruitSquad(world, u);
+    if (h.possessed && world.tick % 20 === 0) nemesisAlert(world, u);
 
     // 附身的英雄：站著不動時，敵人靠近會自動還手
     if (h.possessed && (u.action.type === 'idle' || (u.action.type === 'guard' && dist(u.x, u.y, u.action.x, u.action.y) < 0.6))) {

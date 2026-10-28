@@ -18,10 +18,10 @@ import { GameReport } from './ui/GameReport';
 import {
   SQUAD_SIZE, commandHero, possessedHero, release, setRally, squadOf, useSkill,
 } from './sim/systems/heroSystem';
-import { PATHS } from './sim/heroes';
 import { createTrialWorld, trialById, type TrialDef } from './sim/trials';
 import { TrialsPanel, saveTrialRecord } from './ui/TrialsPanel';
 import { EventsBar, TrialBanner } from './ui/WorldBanners';
+import { SkillButtons } from './ui/SkillButtons';
 
 const randomSeed = () => Math.floor(Math.random() * 1_000_000);
 const MAX_STEPS_PER_FRAME = 400;
@@ -127,9 +127,10 @@ export function App() {
       else if (e.key === 'Escape') {
         setPower(null);
         release(worldRef.current);
-      } else if (e.key === 'q' || e.key === 'Q') {
+      } else if (['q', 'w', 'e'].includes(e.key.toLowerCase())) {
         const hero = possessedHero(worldRef.current);
-        if (hero) useSkill(worldRef.current, hero);
+        const slot = ({ q: 1, w: 2, e: 3 } as const)[e.key.toLowerCase() as 'q' | 'w' | 'e'];
+        if (hero) useSkill(worldRef.current, hero, slot);
       } else if (e.key === 'f' || e.key === 'F') {
         const hero = possessedHero(worldRef.current);
         if (hero?.hero) setRally(worldRef.current, hero, !hero.hero.rally);
@@ -234,14 +235,7 @@ export function App() {
                 <span className="muted"> 點地圖移動、點敵人攻擊</span>
               </span>
               <span className="spacer" />
-              <button
-                className="primary"
-                disabled={possessed.hero.skillCd > 0}
-                onClick={() => useSkill(world, possessed)}
-              >
-                ⚡ {PATHS[possessed.hero.path].skill.name}
-                {possessed.hero.skillCd > 0 ? ` ${Math.ceil(possessed.hero.skillCd / TICKS_PER_SECOND)}s` : ' (Q)'}
-              </button>
+              <SkillButtons world={world} u={possessed} />
               <button
                 className={possessed.hero.rally ? 'active' : ''}
                 title="附近的戰士跟著英雄作戰（F）"

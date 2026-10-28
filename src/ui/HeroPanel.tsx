@@ -5,7 +5,8 @@ import { formatTime } from './ControlBar';
 
 /** 英雄榜：在世的英雄與戰死的傳奇 */
 export function HeroPanel({ world, onSelect }: { world: World; onSelect: (unitId: number) => void }) {
-  const [tab, setTab] = useState<'alive' | 'fallen'>('alive');
+  const [tab, setTab] = useState<'alive' | 'fallen' | 'nemesis'>('alive');
+  const nemeses = world.factions.flatMap((f) => f.nemeses.map((n) => ({ hunter: f, n })));
   const heroes = world.units
     .filter((u) => u.hp > 0 && u.hero)
     .sort((a, b) => b.hero!.level - a.hero!.level || b.kills - a.kills);
@@ -22,9 +23,30 @@ export function HeroPanel({ world, onSelect }: { world: World; onSelect: (unitId
           <button className={tab === 'fallen' ? 'active' : ''} onClick={() => setTab('fallen')}>
             傳奇 {legends.length}
           </button>
+          <button className={tab === 'nemesis' ? 'active' : ''} onClick={() => setTab('nemesis')}>
+            ☠ 宿敵 {nemeses.length}
+          </button>
         </div>
       </div>
-      {tab === 'alive' ? (
+      {tab === 'nemesis' ? (
+        nemeses.length ? (
+          <ul className="hero-list">
+            {nemeses
+              .sort((a, b) => b.n.grudge - a.n.grudge)
+              .map(({ hunter, n }) => (
+                <li key={`${hunter.id}-${n.unitId}`} onClick={() => onSelect(n.unitId)} title={`殺死了：${n.victims.join('、')}`}>
+                  <span style={{ color: world.factions[n.factionId].color }}>☠</span>
+                  <span>{n.name}</span>
+                  <span className="muted">
+                    <span style={{ color: hunter.color }}>{hunter.name}</span>的仇人 · 仇恨 {n.grudge}
+                  </span>
+                </li>
+              ))}
+          </ul>
+        ) : (
+          <p className="muted">殺死某個陣營英雄的敵人，會成為那個陣營的宿敵。</p>
+        )
+      ) : tab === 'alive' ? (
         heroes.length ? (
           <ul className="hero-list">
             {heroes.map((u) => {

@@ -1,6 +1,6 @@
 import { MAX_LEVEL, PATHS, TALENTS, XP_LEVELS } from '../sim/heroes';
-import { TICKS_PER_SECOND } from '../sim/constants';
-import { chooseTalent, heroSummary, possess, release, useSkill } from '../sim/systems/heroSystem';
+import { chooseTalent, heroSummary, possess, release } from '../sim/systems/heroSystem';
+import { SkillButtons } from './SkillButtons';
 import type { Unit, World } from '../sim/types';
 
 /** 英雄的流派、等級、天賦、技能與附身控制 */
@@ -11,6 +11,7 @@ export function HeroCard({ world, u }: { world: World; u: Unit }) {
   const prev = XP_LEVELS[h.level];
   const progress = next === null ? 1 : (h.xp - prev) / (next - prev);
   const { combos } = heroSummary(world, u);
+  const nemeses = world.factions[u.factionId].nemeses;
 
   return (
     <div className="hero-card">
@@ -58,15 +59,7 @@ export function HeroCard({ world, u }: { world: World; u: Unit }) {
       )}
 
       <div className="hero-actions">
-        <button
-          className="primary"
-          disabled={h.skillCd > 0}
-          title={path.skill.desc}
-          onClick={() => useSkill(world, u)}
-        >
-          ⚡ {path.skill.name}
-          {h.skillCd > 0 ? `（${Math.ceil(h.skillCd / TICKS_PER_SECOND)} 秒）` : ''}
-        </button>
+        <SkillButtons world={world} u={u} />
         {h.possessed ? (
           <button onClick={() => release(world)}>解除附身</button>
         ) : (
@@ -75,7 +68,17 @@ export function HeroCard({ world, u }: { world: World; u: Unit }) {
           </button>
         )}
       </div>
-      <div className="muted hero-skill-desc">技能：{path.skill.desc}</div>
+      <div className="muted hero-skill-desc">
+        Q {path.skill.name}：{path.skill.desc}
+        <br />W {path.skill2.name}（Lv3）：{path.skill2.desc}
+        <br />E {path.ult.name}（Lv5 大招）：{path.ult.desc}
+      </div>
+      {nemeses.length > 0 && (
+        <div className="nemesis-note">
+          ☠ {world.factions[u.factionId].name}的宿敵：
+          {nemeses.map((n) => `${n.name}（仇恨 ${n.grudge}）`).join('、')}
+        </div>
+      )}
 
       {h.deeds.length > 0 && (
         <details className="hero-deeds">
