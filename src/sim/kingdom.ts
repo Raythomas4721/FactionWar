@@ -71,7 +71,13 @@ export const KINGDOM_RULES: Partial<WorldRules> = {
   randomEvents: true,
   infiniteMana: false,
   raceSelection: [],
+  // 1v1 的種族平衡（npm run duel 雙方 AI 各打 120 場調出來的；四族混戰不受影響）：
+  // 蟲海在只有一個對手時太強，人類的外交長處在 1v1 用不上
+  racePower: { orc: 0.97, elf: 0.94, dwarf: 1.04, human: 1.07, undead: 1.04, insect: 0.9, beast: 1 },
 };
+
+/** 1v1 額外的種族修正（目前只靠上面的屬性倍率就夠了，保留給之後微調） */
+export const KINGDOM_RACE_MODS: Partial<Record<RaceId, Partial<Record<ModKey, number>>>> = {};
 
 export function resolveEnemy(setup: KingdomSetup): RaceId {
   if (setup.enemy !== 'random' && setup.enemy !== setup.player) return setup.enemy;
@@ -86,6 +92,10 @@ export function createKingdomWorld(setup: KingdomSetup): World {
   const enemy = world.factions[1];
   const diff = DIFFICULTIES[setup.difficulty];
   player.playerControlled = !setup.autoPlay;
+  for (const f of [player, enemy]) {
+    const mods = KINGDOM_RACE_MODS[f.race];
+    if (mods) f.modifiers.push({ source: 'balance', name: '1v1 平衡', icon: '⚖', mods, until: Infinity, hidden: true });
+  }
   enemy.aggression = diff.aggression;
   enemy.counterPlay = diff.counterPlay;
   if (Object.keys(diff.enemyMods).length) {

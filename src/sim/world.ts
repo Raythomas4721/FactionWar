@@ -30,9 +30,9 @@ import { updateWorldEvents } from './events';
 import { evaluateTrial } from './trials';
 import { updateKingdom } from './policies';
 import { modOf } from './modifiers';
-import { garrisonSpot, createOutposts, updateOutposts } from './systems/outposts';
+import { createOutposts, updateOutposts } from './systems/outposts';
 import { updateFog } from './fog';
-import { ambushTick, tunnelTick, updateStealth } from './systems/troopActions';
+import { ambushTick, garrisonTick, tunnelTick, updateStealth } from './systems/troopActions';
 import { moveTo } from './systems/movement';
 
 export interface WorldOptions {
@@ -262,8 +262,7 @@ function act(world: World, u: Unit): boolean {
     case 'garrison': {
       const o = world.outposts.find((p) => p.id === a.outpostId);
       if (!o || u.post !== o.id) return false;
-      const spot = garrisonSpot(o, u);
-      moveTo(world, u, spot.x, spot.y, 0.4);
+      garrisonTick(world, u, o);
       return true;
     }
     case 'scout':

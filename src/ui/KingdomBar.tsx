@@ -6,6 +6,9 @@ import { DIFFICULTIES } from '../sim/kingdom';
 import { activeModifiers, attackForbidden } from '../sim/modifiers';
 import { POLICIES, choosePolicy, policyBlocked } from '../sim/policies';
 import { activeLairs } from '../sim/systems/neutral';
+import { ODDS_LABEL, lairOdds } from '../sim/strength';
+import { centerOf, hqOf } from '../sim/util';
+import { dist } from '../sim/math';
 import type { Faction, Modifier, Outpost, World } from '../sim/types';
 import { formatTime } from './ControlBar';
 
@@ -26,38 +29,60 @@ function ModChips({ world, f, prefix }: { world: World; f: Faction; prefix?: str
   );
 }
 
-/** 據點：誰佔領、佔領進度、我方駐守人數（可以加減） */
+/** 據點的狀態文字：我方／敵方／中立，或正在佔領的進度 */
+export function outpostStatus(o: Outpost, me: Faction): string {
+  if (o.capturing !== null && o.progress > 0) {
+    return `${o.capturing === me.id ? '佔領' : '被搶'}${Math.round(o.progress * 100)}%`;
+  }
+  return o.owner === null ? '中立' : o.owner === me.id ? '我方' : '敵方';
+}
+
+/** 派兵佔領／加派／撤回（指揮列與檢視面板共用） */
+export function OutpostActions({ world, o, me }: { world: World; o: Outpost; me: Faction }) {
+  const want = me.garrisons[o.id] ?? 0;
+  const have = garrisonOf(world, me.id, o.id).length;
+  if (want === 0) {
+    return (
+      <button className="op-go" title="派 3 名戰士過去佔領並駐守" onClick={() => adjustGarrison(world, me, o.id, 3)}>
+        🚩 <span className="long">派兵</span>佔領
+      </button>
+    );
+  }
+  return (
+    <>
+      <span className="garrison-count" title="已抵達／派出的駐守人數">
+        <span className="long">🛡</span>
+        {have}/{want}
+      </span>
+      <button aria-label="加派一人" title="加派一人" disabled={want >= MAX_GARRISON} onClick={() => adjustGarrison(world, me, o.id, 1)}>
+        ＋
+      </button>
+      <button aria-label="撤回駐軍" title="撤回駐軍" onClick={() => adjustGarrison(world, me, o.id, -want)}>
+        <span className="long">撤回</span>
+        <span className="short">✕</span>
+      </button>
+    </>
+  );
+}
+
 function OutpostChip({ world, o, me }: { world: World; o: Outpost; me: Faction }) {
   const def = OUTPOST_DEFS[o.kind];
   const owner = o.owner !== null ? world.factions[o.owner] : null;
-  const want = me.garrisons[o.id] ?? 0;
-  const have = garrisonOf(world, me.id, o.id).length;
-  // 誰佔領看外框顏色；只有正在搶的時候才顯示進度
-  const status =
-    o.capturing !== null && o.progress > 0
-      ? `${o.capturing === me.id ? '佔領' : '被搶'}${Math.round(o.progress * 100)}%`
-      : '';
   return (
     <span
       className="outpost-chip"
       style={{ borderColor: owner?.color }}
       title={`${def.name}（${owner ? owner.name : '中立'}）：${def.desc}`}
     >
-      <span className="op-name" style={{ color: owner?.color }}>
+      <span className="op-name">
         {def.icon}
         <span className="long">{def.name}</span>
       </span>
-      {status && <small className="op-status">{status}</small>}
-      <button aria-label="少派一人" disabled={want <= 0} onClick={() => adjustGarrison(world, me, o.id, -1)}>
-        −
-      </button>
-      <span className="garrison-count" title="駐守中／想要的人數">
-        <span className="long">🛡</span>
-        {have}/{want}
-      </span>
-      <button aria-label="多派一人" disabled={want >= MAX_GARRISON} onClick={() => adjustGarrison(world, me, o.id, 1)}>
-        ＋
-      </button>
+      <small className="op-status" style={{ color: owner?.color }}>
+        {outpostStatus(o, me)}
+      </small>
+      <span className="spacer" />
+      <OutpostActions world={world} o={o} me={me} />
     </span>
   );
 }
@@ -78,7 +103,14 @@ export function KingdomBar({ world, message, onOpenOffer, scoutMode, onScoutMode
   const me = world.factions[k.player];
   const foe = world.factions[k.enemy];
   const beast = world.factions.find((f) => f.neutral && f.alive);
-  const lairsLeft = beast ? activeLairs(world).length : 0;
+  const lairs = beast ? activeLairs(world) : [];
+  const lairsLeft = lairs.length;
+  const odds = lairs.map((l) => ({ lair: l, odds: lairOdds(world, me.id, l) }));
+  const best = odds.reduce<(typeof odds)[number] | null>((a, b) => (!a || b.odds.ratio > a.odds.ratio ? b : a), null);
+  // 據點照離自家營帳的遠近排列
+  const hq = hqOf(world, me);
+  const home = hq ? centerOf(hq) : { x: 0, y: 0 };
+  const outposts = [...world.outposts].sort((a, b) => dist(home.x, home.y, a.x, a.y) - dist(home.x, home.y, b.x, b.y));
   const locked = attackForbidden(world, me);
   const scouts = world.units.filter((u) => u.hp > 0 && u.factionId === me.id && u.troop === 'scout').length;
   const scoutCost = unitCost(world, me, 'warrior', 'scout');
@@ -118,10 +150,12 @@ export function KingdomBar({ world, message, onOpenOffer, scoutMode, onScoutMode
             <button
               className={isOn('attack', beast.id) ? 'active attack' : ''}
               disabled={locked}
-              title="派兵討伐中立巢穴，奪取寶藏"
+              title={`派兵討伐中立巢穴，奪取寶藏。全軍出動的勝算：\n${odds
+                .map((o) => `${o.lair.name}：${ODDS_LABEL[o.odds.level].icon}${ODDS_LABEL[o.odds.level].text}（戰力 ${Math.round(o.odds.mine)} vs ${Math.round(o.odds.theirs)}）`)
+                .join('\n')}`}
               onClick={() => stance('attack', beast.id)}
             >
-              🏆 <span className="long">討伐</span>巢穴 <small>({lairsLeft})</small>
+              🏆 <span className="long">討伐</span>巢穴 {best && <small>{ODDS_LABEL[best.odds.level].icon}</small>}
             </button>
           )}
           <button
@@ -161,7 +195,7 @@ export function KingdomBar({ world, message, onOpenOffer, scoutMode, onScoutMode
       {me.alive && !world.over && world.outposts.length > 0 && (
         <div className="kb-row kb-outposts">
           <span className="cmd-label">據點</span>
-          {world.outposts.map((o) => (
+          {outposts.map((o) => (
             <OutpostChip key={o.id} world={world} o={o} me={me} />
           ))}
         </div>

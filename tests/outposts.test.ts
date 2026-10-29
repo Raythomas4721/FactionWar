@@ -7,6 +7,7 @@ import { adjustGarrison, garrisonOf, updateOutposts } from '../src/sim/systems/o
 import { factionUnits, spawnUnit } from '../src/sim/util';
 import { score, step } from '../src/sim/world';
 import type { OutpostKind, World } from '../src/sim/types';
+import { lairOdds } from '../src/sim/strength';
 
 const kingdom = (fog = true) => createKingdomWorld({ player: 'human', enemy: 'orc', difficulty: 'normal', seed: 3, fog });
 const outpost = (w: World, kind: OutpostKind) => w.outposts.find((o) => o.kind === kind)!;
@@ -134,5 +135,41 @@ describe('戰爭迷霧與斥候', () => {
     const w = kingdom(false);
     createFog(w, 0);
     expect(w.fog).toBeDefined();
+  });
+});
+
+describe('地道與戰力估算', () => {
+  it('派去駐守的地道工兵從地底挖過去，冒出來才佔領', () => {
+    const w = createKingdomWorld({ player: 'dwarf', enemy: 'orc', difficulty: 'normal', seed: 4, fog: false });
+    w.kingdom!.nextPolicyAt = Infinity;
+    const me = w.factions[0];
+    me.tech = 2;
+    // 讓工兵成為唯一的戰士，駐守命令一定派到他
+    for (const u of factionUnits(w, me.id)) if (u.role === 'warrior') u.role = 'worker';
+    const sapper = spawnUnit(w, me, 'warrior', 'sapper')!;
+    const o = outpost(w, 'shrine');
+    adjustGarrison(w, me, o.id, 1);
+    expect(sapper.post).toBe(o.id);
+    let wentUnder = false;
+    for (let i = 0; i < 600 && o.owner !== 0; i++) {
+      step(w);
+      if (sapper.underground) wentUnder = true;
+    }
+    expect(wentUnder).toBe(true);
+    expect(sapper.underground).toBe(false);
+    expect(o.owner).toBe(0);
+  });
+
+  it('開局打巨龍很危險；兵越多勝算越高', () => {
+    const w = kingdom(false);
+    const me = w.factions[0];
+    const lair = w.lairs.find((l) => l.monster !== 'dragon')!;
+    const few = lairOdds(w, me.id, lair);
+    const dragon = w.lairs.find((l) => l.monster === 'dragon')!;
+    expect(lairOdds(w, me.id, dragon).level).toBe('danger');
+    for (let i = 0; i < 20; i++) spawnUnit(w, me, 'warrior');
+    const many = lairOdds(w, me.id, lair);
+    expect(many.ratio).toBeGreaterThan(few.ratio * 2);
+    expect(many.mine).toBeGreaterThan(few.mine);
   });
 });

@@ -45,7 +45,7 @@ export function think(world: World, u: Unit): void {
   const resting = u.action.type === 'retreat';
 
   // 地底的工兵不受地面戰況影響，一路挖到底
-  if (u.underground && u.action.type === 'tunnel') add(98, u.action);
+  if (u.underground && (u.action.type === 'tunnel' || u.action.type === 'garrison')) add(98, u.action);
 
   if (u.role === 'warrior') {
     let s = (1 - hpRatio) * 90 + (u.morale < 25 ? 70 : 0);

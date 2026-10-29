@@ -6,7 +6,7 @@ import { carryOf, cooldownOf, speedOf } from '../sim/stats';
 import { armorOf, hitChance, rawDamage } from '../sim/systems/combat';
 import { expectedQuality } from '../sim/systems/crafting';
 import { TICKS_PER_SECOND } from '../sim/constants';
-import type { Building, Unit, World } from '../sim/types';
+import type { Building, Outpost, Unit, World } from '../sim/types';
 import { RESOURCE_NAMES, getBuilding, hasCompleted, unitLabel } from '../sim/util';
 import { CHARGE_DISTANCE, TROOP_DEFS, troopName } from '../sim/troops';
 import { formatTime } from './ControlBar';
@@ -14,6 +14,10 @@ import { infectionRisk, lifespanOf } from '../sim/systems/health';
 import { persuadeChance } from '../sim/systems/diplomacy';
 import { inventionChance } from '../sim/systems/invention';
 import { guardiansOf, lairOfBuilding } from '../sim/systems/neutral';
+import { ODDS_LABEL, lairOdds } from '../sim/strength';
+import { OUTPOST_DEFS } from '../sim/outposts';
+import { OutpostActions } from './KingdomBar';
+import type { Lair } from '../sim/lairs';
 import { MONSTERS, treasureLabel } from '../sim/lairs';
 import { HeroCard } from './HeroCard';
 import { outpostLabel } from '../sim/systems/outposts';
@@ -30,10 +34,13 @@ const ATTR_HINTS: Record<string, string> = {
 export function Inspector({ world, selection }: { world: World; selection: Selection | null }) {
   let body: JSX.Element;
   if (!selection) {
-    body = <p className="muted">點擊地圖上的小人或建築，查看屬性與狀態。</p>;
+    body = <p className="muted">點擊地圖上的小人、建築或據點，查看屬性與狀態。</p>;
   } else if (selection.kind === 'unit') {
     const u = world.unitMap.get(selection.id);
     body = u && u.hp > 0 ? <UnitView world={world} u={u} /> : <p className="muted">這名小人已經陣亡了。</p>;
+  } else if (selection.kind === 'outpost') {
+    const o = world.outposts.find((p) => p.id === selection.id);
+    body = o ? <OutpostView world={world} o={o} /> : <p className="muted">找不到這個據點。</p>;
   } else {
     const b = getBuilding(world, selection.id);
     body = b ? <BuildingView world={world} b={b} /> : <p className="muted">這棟建築已被摧毀。</p>;
@@ -184,6 +191,62 @@ function UnitView({ world, u }: { world: World; u: Unit }) {
   );
 }
 
+/** 各陣營全軍出動打這座巢穴的勝算（王國模式只看自己） */
+function LairOdds({ world, lair }: { world: World; lair: Lair }) {
+  const guards = guardiansOf(world, lair);
+  if (!guards.length) return null;
+  const who = world.kingdom ? [world.factions[world.kingdom.player]] : world.factions.filter((f) => f.alive && !f.neutral);
+  return (
+    <div className="lair-odds">
+      {who.map((f) => {
+        const o = lairOdds(world, f.id, lair);
+        const label = ODDS_LABEL[o.level];
+        return (
+          <div key={f.id} title="戰力 = √(總生命 × 每秒傷害)，已算進命中與護甲；勝算是全軍出動的估計">
+            <span style={{ color: f.color }}>{world.kingdom ? '我軍' : f.name}</span> 戰力 {Math.round(o.mine)} vs 守衛 {Math.round(o.theirs)}：
+            <b style={{ color: label.color }}>
+              {label.icon} {label.text}
+            </b>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function OutpostView({ world, o }: { world: World; o: Outpost }) {
+  const def = OUTPOST_DEFS[o.kind];
+  const owner = o.owner !== null ? world.factions[o.owner] : null;
+  const me = world.kingdom ? world.factions[world.kingdom.player] : null;
+  return (
+    <div className="unit-view">
+      <div className="iv-title">
+        <span className="dot" style={{ background: owner?.color ?? '#c9ced6' }} />
+        <b>
+          {def.icon} {def.name}
+        </b>
+        <span className="muted">{owner ? `${owner.name}佔領` : '中立'}</span>
+      </div>
+      <p>{def.desc}</p>
+      <p className="muted">
+        派戰士站上去就能佔領：1 人約 15 秒，人越多越快（最多 3 倍），搶敵人的據點要兩倍時間；雙方都有人時僵持。地道工兵會從地底挖過去。
+      </p>
+      {o.capturing !== null && o.progress > 0 && (
+        <div>
+          <span style={{ color: world.factions[o.capturing].color }}>{world.factions[o.capturing].name}</span> 佔領中{' '}
+          {Math.round(o.progress * 100)}%
+        </div>
+      )}
+      {me && me.alive && !world.over && (
+        <div className="outpost-actions">
+          <span className="muted">我方駐守：</span>
+          <OutpostActions world={world} o={o} me={me} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LairInfo({ world, buildingId }: { world: World; buildingId: number }) {
   const lair = lairOfBuilding(world, buildingId);
   if (!lair) return null;
@@ -195,6 +258,7 @@ function LairInfo({ world, buildingId }: { world: World; buildingId: number }) {
       </div>
       <div>守衛：{MONSTERS[lair.monster].name} × {guards.length}（共 {Math.ceil(guards.reduce((s, g) => s + g.hp, 0))} 生命）</div>
       <div className="fc-best">寶藏：{treasureLabel(lair.treasure)}</div>
+      <LairOdds world={world} lair={lair} />
       <div className="muted">周圍的遠古礦脈在攻陷前無人敢採</div>
     </div>
   );

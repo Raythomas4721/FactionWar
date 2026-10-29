@@ -263,8 +263,9 @@ export function App() {
   const changeRules = (next: WorldRules) => {
     setRules(next);
     saveRules(next);
-    // 即時規則直接套用；地圖與開局科技要等新局
+    // 即時規則直接套用；地圖與開局科技要等新局。王國模式有自己固定的規則（含 1v1 平衡），不受影響
     const world = worldRef.current;
+    if (world.kingdom) return;
     world.rules = { ...next, resourceRichness: world.rules.resourceRichness, startTech: world.rules.startTech };
     world.maxTicks = maxTicksOf(world.rules);
   };

@@ -1415,9 +1415,11 @@ canvas.casting {
 
 /* 手機：王國指揮列不橫向捲動，按鈕平均分配、據點排成 3×2 */
 .app.mobile .kingdom-bar .long,
-.app.mobile .kb-outposts .cmd-label,
-.app.mobile .op-status {
+.app.mobile .kb-outposts .cmd-label {
   display: none;
+}
+.app.mobile .kingdom-bar .short {
+  display: inline;
 }
 .app.mobile .kb-title {
   font-size: 13px;
@@ -1442,7 +1444,7 @@ canvas.casting {
 }
 .app.mobile .kb-outposts {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 4px;
 }
 .app.mobile .outpost-chip {
@@ -1453,4 +1455,28 @@ canvas.casting {
 .app.mobile .outpost-chip button {
   min-width: 26px;
   line-height: 22px;
+}
+
+.kingdom-bar .short,
+.outpost-actions .short {
+  display: none;
+}
+.outpost-chip .spacer {
+  flex: 1;
+}
+.op-go {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.outpost-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+.lair-odds {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
