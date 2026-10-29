@@ -45,13 +45,17 @@ export const TROOP_DEFS: Record<Troop, TroopDef> = {
     id: 'ghoul', name: '食屍鬼', races: ['undead'], tech: 1, extraFood: 0, upkeep: 1, speedMult: 1.1, weapon: 'melee',
     desc: '撕咬敵人時吸取生命（造成傷害的 40% 回復自己）',
   },
+  scout: {
+    id: 'scout', name: '斥候', races: 'all', tech: 0, extraFood: 6, upkeep: 1, speedMult: 1.6, weapon: 'any',
+    desc: '跑得快、視野廣（11 格），自動到處偵察、見到敵人就跑；也可以指定偵察地點。不參與戰鬥與佔領',
+  },
   stinger: {
     id: 'stinger', name: '毒刺蟲', races: ['insect'], tech: 1, extraFood: 0, upkeep: 1, speedMult: 1.1, weapon: 'melee',
     desc: '毒刺命中時可能讓敵人染病',
   },
 };
 
-export const TROOP_ORDER: Troop[] = ['soldier', 'spearman', 'cavalry', 'sapper', 'ranger', 'ghoul', 'stinger'];
+export const TROOP_ORDER: Troop[] = ['soldier', 'spearman', 'cavalry', 'sapper', 'ranger', 'ghoul', 'stinger', 'scout'];
 
 /** 衝鋒：至少要奔跑這麼多格 */
 export const CHARGE_DISTANCE = 3;

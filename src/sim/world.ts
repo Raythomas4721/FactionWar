@@ -30,6 +30,8 @@ import { updateWorldEvents } from './events';
 import { evaluateTrial } from './trials';
 import { updateKingdom } from './policies';
 import { modOf } from './modifiers';
+import { garrisonSpot, createOutposts, updateOutposts } from './systems/outposts';
+import { updateFog } from './fog';
 import { ambushTick, tunnelTick, updateStealth } from './systems/troopActions';
 import { moveTo } from './systems/movement';
 
@@ -80,6 +82,7 @@ export function createBlankWorld(seed: number, width = MAP_W, height = MAP_H, ru
     activeEvents: [],
     nextEventAt: 0,
     shake: 0,
+    outposts: [],
   };
 }
 
@@ -120,6 +123,7 @@ export function createFaction(world: World, race: RaceId, races: RaceId[]): Fact
     modifiers: [],
     aggression: 1,
     counterPlay: false,
+    garrisons: {},
   };
   world.factions.push(f);
   return f;
@@ -143,6 +147,7 @@ export function createWorld(seed: number, opts: WorldOptions = {}): World {
       if (u && role === 'warrior') u.weapon = starterWeapon(world, race);
     }
   });
+  if (map.outpostSpots) createOutposts(world, map.outpostSpots);
   if (world.rules.neutralLairs) {
     const beast = createFaction(world, 'beast', [...races, 'beast']);
     setupLairs(world, beast, map, (x, y) => createBuilding(world, beast, 'lair', x, y, true).id);
@@ -169,7 +174,8 @@ export function score(world: World, f: Faction): number {
     factionUnits(world, f.id).length * 10 +
     factionBuildings(world, f.id).filter((b) => b.complete).length * 8 +
     f.tech * 30 +
-    f.stats.kills * 3
+    f.stats.kills * 3 +
+    world.outposts.filter((o) => o.owner === f.id).length * 15
   );
 }
 
@@ -225,7 +231,9 @@ export function step(world: World): void {
     else recover(world, u, besieged);
   }
 
+  updateOutposts(world);
   cleanup(world);
+  updateFog(world);
   for (const e of world.effects) e.ttl--;
   world.shake = Math.max(0, world.shake - 0.4);
   world.effects = world.effects.filter((e) => e.ttl > 0);
@@ -251,6 +259,16 @@ function act(world: World, u: Unit): boolean {
     case 'guard':
       moveTo(world, u, a.x, a.y, 0.5);
       return true;
+    case 'garrison': {
+      const o = world.outposts.find((p) => p.id === a.outpostId);
+      if (!o || u.post !== o.id) return false;
+      const spot = garrisonSpot(o, u);
+      moveTo(world, u, spot.x, spot.y, 0.4);
+      return true;
+    }
+    case 'scout':
+      // 到了就重新決定下一個偵察地點
+      return !moveTo(world, u, a.x, a.y, 0.8);
     case 'retreat': {
       // 病人去醫館養病，其他人回營帳
       const hq = hqOf(world, world.factions[u.factionId]);

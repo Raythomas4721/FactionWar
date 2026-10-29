@@ -1,5 +1,5 @@
 import type { Rng } from './rng';
-import type { Point, Tile, TileKind } from './types';
+import type { OutpostKind, Point, Tile, TileKind } from './types';
 
 /**
  * 地圖產生：先隨機產生左上象限，再鏡射到四個象限。
@@ -10,12 +10,14 @@ export interface MapResult {
   tiles: Tile[];
   /** 四個營帳的左上角（2x2） */
   hqSpots: Point[];
-  /** 四座象限巢穴的左上角（2x2） */
+  /** 巢穴的左上角（2x2）；四人地圖每個象限一座 */
   lairSpots: Point[];
   /** 中央巨龍之巢的左上角（2x2） */
   dragonSpot: Point;
-  /** 1v1 地圖：巢穴成對擺放（第 i 座與第 i+2 座點對稱），守衛與寶藏種類相同 */
+  /** 1v1 地圖：巢穴成對擺放（前一半與後一半點對稱），守衛與寶藏種類相同 */
   pairedLairs?: boolean;
+  /** 可以佔領的據點（中心座標） */
+  outpostSpots?: { kind: OutpostKind; x: number; y: number }[];
 }
 
 /** 1v1 對峙地圖的大小 */
@@ -126,7 +128,8 @@ function tryGenerate(rng: Rng, w: number, h: number, richness: number): MapResul
 export function generateDuelMap(rng: Rng, w = DUEL_W, h = DUEL_H, richness = 1): MapResult {
   for (let attempt = 0; attempt < 20; attempt++) {
     const result = tryGenerateDuel(rng, w, h, richness);
-    if (isConnected(result, w, h, [...result.lairSpots, result.dragonSpot])) return result;
+    const outposts = result.outpostSpots!.map((o) => ({ x: Math.floor(o.x), y: Math.floor(o.y) }));
+    if (isConnected(result, w, h, [...result.lairSpots, result.dragonSpot, ...outposts])) return result;
   }
   throw new Error('無法產生連通的地圖');
 }
@@ -136,9 +139,18 @@ function tryGenerateDuel(rng: Rng, w: number, h: number, richness: number): MapR
   const midY = Math.floor(h / 2);
   const half: { kind: TileKind; amount: number }[] = Array.from({ length: hw * h }, () => ({ kind: 'grass', amount: 0 }));
   const hq: Point = { x: 4, y: midY - 1 };
-  const lairs: Point[] = [{ x: hw - 11, y: 4 }, { x: hw - 11, y: h - 6 }];
+  // 每邊一座巢穴靠在角落：離營帳 19 格以上（怪物追擊範圍外），
+  // 據點也都離巢穴與巨龍 11 格以上，駐守的士兵才不會被怪物盯上
+  const lairs: Point[] = [{ x: hw - 13, y: 1 }];
   const dragon: Point = { x: hw - 1, y: midY - 1 };
+  // 據點：靠近自家的礦場、中場的瞭望塔、上方正中央的戰神祠（旋轉後在下方）
+  const outposts: { kind: OutpostKind; x: number; y: number }[] = [
+    { kind: 'mine', x: 15.5, y: midY - 0.5 },
+    { kind: 'watchtower', x: hw - 8, y: h - 7 },
+    { kind: 'shrine', x: hw, y: 3 },
+  ];
   const reserved = [
+    ...outposts.map((o) => ({ x: o.x, y: o.y, r: 2 })),
     { x: hq.x + 1, y: hq.y + 1, r: BASE_CLEAR_RADIUS },
     ...lairs.map((l) => ({ x: l.x + 1, y: l.y + 1, r: 2.2 })),
     { x: hw, y: midY, r: 1.8 },
@@ -203,6 +215,7 @@ function tryGenerateDuel(rng: Rng, w: number, h: number, richness: number): MapR
     lairSpots: [...lairs, ...lairs.map(rotate)],
     dragonSpot: dragon,
     pairedLairs: true,
+    outpostSpots: [...outposts, ...outposts.map((o) => ({ kind: o.kind, x: w - o.x, y: h - o.y }))],
   };
 }
 

@@ -121,7 +121,7 @@ export type ResourceKind = 'wood' | 'stone' | 'ore' | 'food';
 export type Resources = Record<ResourceKind, number>;
 export type Role = 'worker' | 'warrior' | 'smith' | 'diplomat';
 /** 戰士的兵種 */
-export type Troop = 'soldier' | 'spearman' | 'cavalry' | 'sapper' | 'ranger' | 'ghoul' | 'stinger';
+export type Troop = 'soldier' | 'spearman' | 'cavalry' | 'sapper' | 'ranger' | 'ghoul' | 'stinger' | 'scout';
 export type TileKind = 'grass' | 'water' | 'forest' | 'rock' | 'ore' | 'berries';
 export type BuildingType =
   | 'hq' | 'house' | 'farm' | 'forge' | 'library' | 'barracks' | 'tower' | 'infirmary' | 'stable' | 'lair';
@@ -167,7 +167,11 @@ export type UnitAction =
   /** 地道工兵：從地底挖向敵方建築 */
   | { type: 'tunnel'; targetId: number }
   /** 林地伏兵：躲進森林等敵人經過 */
-  | { type: 'ambush'; x: number; y: number };
+  | { type: 'ambush'; x: number; y: number }
+  /** 駐守據點 */
+  | { type: 'garrison'; outpostId: number }
+  /** 斥候：前往某處偵察 */
+  | { type: 'scout'; x: number; y: number };
 
 export interface Unit {
   id: number;
@@ -189,6 +193,8 @@ export interface Unit {
   repathAt: number;
   action: UnitAction;
   thinkAt: number;
+  /** 被派去駐守的據點 id */
+  post?: number;
   carrying: { kind: ResourceKind; amount: number } | null;
   weapon: Item | null;
   armor: Item | null;
@@ -322,6 +328,37 @@ export interface Faction {
   aggression: number;
   /** AI 會針對對手的兵種調整訓練（困難難度） */
   counterPlay: boolean;
+  /** 各據點想要的駐守人數（據點 id → 人數） */
+  garrisons: Record<number, number>;
+}
+
+export type OutpostKind = 'mine' | 'watchtower' | 'shrine';
+
+/** 地圖上可以佔領的據點：派兵站上去就能佔領，敵人也會來搶 */
+export interface Outpost {
+  id: number;
+  kind: OutpostKind;
+  x: number;
+  y: number;
+  owner: number | null;
+  /** 正在佔領的陣營與進度 0~1 */
+  capturing: number | null;
+  progress: number;
+  /** 瞭望塔射擊的冷卻 */
+  cooldown: number;
+}
+
+/** 戰爭迷霧：只有玩家看得到自己視野內的東西 */
+export interface FogState {
+  factionId: number;
+  /** 每格最後一次被看到的 tick + 1（0 = 從未探索） */
+  lastSeen: Int32Array;
+  /** 這一刻看得到的格子 */
+  visible: Uint8Array;
+  /** 每次更新 +1，給畫面判斷要不要重畫 */
+  version: number;
+  /** 玩家指定的偵察地點 */
+  scoutTarget: Point | null;
 }
 
 export type EventKind =
@@ -391,6 +428,10 @@ export interface World {
   trial?: TrialState;
   /** 王國模式（一般模式為 undefined） */
   kingdom?: KingdomState;
+  /** 可以佔領的據點 */
+  outposts: Outpost[];
+  /** 戰爭迷霧（只有王國模式） */
+  fog?: FogState;
   /** 畫面震動強度（純視覺，附身英雄受重擊時） */
   shake: number;
 }

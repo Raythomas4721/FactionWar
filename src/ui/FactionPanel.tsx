@@ -8,9 +8,28 @@ import { RESOURCE_NAMES, factionBuildings, factionUnits, popCapOf } from '../sim
 import { score } from '../sim/world';
 import { RELICS } from '../sim/lairs';
 import { FactionCommands } from './FactionCommands';
+import { unitVisible } from '../sim/fog';
 
 const RES_ORDER: (keyof Resources)[] = ['food', 'wood', 'stone', 'ore'];
 const SHOWN_BUILDINGS: BuildingType[] = ['house', 'farm', 'forge', 'library', 'barracks', 'infirmary', 'stable', 'tower'];
+
+/** 戰爭迷霧中的敵國：只知道看得到的部分 */
+function FoggedCard({ world, f }: { world: World; f: Faction }) {
+  const seen = factionUnits(world, f.id).filter((u) => unitVisible(world, u));
+  const warriors = seen.filter((u) => u.role === 'warrior').length;
+  return (
+    <div className="panel faction-card" style={{ borderTopColor: f.color }}>
+      <div className="fc-head">
+        <span className="dot" style={{ background: f.color }} />
+        <h3 style={{ color: f.color }}>{f.name}</h3>
+        <span className="badge">🌫 情報不足</span>
+      </div>
+      <p className="muted">
+        目前看得到 {seen.length} 名敵人（戰士 {warriors}）。派斥候、佔領瞭望塔，才看得到更多敵情。
+      </p>
+    </div>
+  );
+}
 
 export function FactionPanel({ world }: { world: World }) {
   return (
@@ -23,6 +42,7 @@ export function FactionPanel({ world }: { world: World }) {
 }
 
 function FactionCard({ world, f }: { world: World; f: Faction }) {
+  if (world.fog && f.alive && f.id !== world.fog.factionId) return <FoggedCard world={world} f={f} />;
   const race = RACES[f.race];
   const units = factionUnits(world, f.id);
   const count = (r: string) => units.filter((u) => u.role === r).length;

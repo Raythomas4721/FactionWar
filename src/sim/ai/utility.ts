@@ -12,6 +12,7 @@ import { bestArmoryUpgrade } from '../systems/equipment';
 import { pickSubvertTarget } from '../systems/diplomacy';
 import { findAmbushSpot } from '../systems/troopActions';
 import { followerThink } from '../systems/heroSystem';
+import { pickScoutTarget } from '../fog';
 
 /**
  * 個體 Utility AI：列出所有可做的事、各自打分，挑最高分的去做。
@@ -28,6 +29,10 @@ const RESOURCE_KINDS: ResourceKind[] = ['food', 'wood', 'stone', 'ore'];
 export function think(world: World, u: Unit): void {
   // 「跟隨我」小隊：血量太低才會脫隊撤退
   if (u.followHero !== undefined && u.hp > u.maxHp * 0.25 && followerThink(world, u)) return;
+  if (u.troop === 'scout') {
+    scoutThink(world, u);
+    return;
+  }
   const f = world.factions[u.factionId];
   const hq = hqOf(world, f);
   if (!hq) return;
@@ -90,6 +95,8 @@ function sameAction(a: UnitAction, b: UnitAction): boolean {
     case 'subvert': return b.type === 'subvert' && a.targetId === b.targetId;
     case 'tunnel': return b.type === 'tunnel' && a.targetId === b.targetId;
     case 'ambush': return b.type === 'ambush' && a.x === b.x && a.y === b.y;
+    case 'garrison': return b.type === 'garrison' && a.outpostId === b.outpostId;
+    case 'scout': return b.type === 'scout' && a.x === b.x && a.y === b.y;
     case 'guard': return true;
     case 'craft': return true;
     default: return true;
@@ -124,7 +131,10 @@ function warriorOptions(
     const cur = world.unitMap.get(u.action.targetId);
     if (cur && cur.hp > 0) add(76, u.action);
   }
-  if (enemy) add(72 - enemyDist * 2, { type: 'attackUnit', targetId: enemy.id });
+  // 駐守的士兵不去招惹巢穴邊的怪物（除非怪物貼上來，或正在討伐巢穴）
+  const huntingLairs = f.stance === 'attack' && f.targetFaction !== null && world.factions[f.targetFaction].neutral;
+  const ignoreMonster = u.post !== undefined && !!enemy?.monster && !huntingLairs && enemyDist > 2.5;
+  if (enemy && !ignoreMonster) add(72 - enemyDist * 2, { type: 'attackUnit', targetId: enemy.id });
   // 宿敵就在眼前：血債血償
   for (const n of f.nemeses) {
     const foe = world.unitMap.get(n.unitId);
@@ -133,6 +143,9 @@ function warriorOptions(
       break;
     }
   }
+
+  // 駐守據點：比跟著大軍攻城優先，但看到敵人還是會迎戰
+  if (u.post !== undefined) add(50, { type: 'garrison', outpostId: u.post });
 
   const up = bestArmoryUpgrade(f, u);
   if (up && !enemy) add(55 + Math.min(up.gain * 3, 20), { type: 'equip' });
@@ -173,6 +186,33 @@ function warriorOptions(
       y: hc.y + toCy * 4 + world.rng.range(-2, 2),
     });
   }
+}
+
+/**
+ * 斥候：不打仗、不佔領，只負責看。受傷就回家，看到敵人就往反方向跑，
+ * 其餘時間跑去最久沒看過的地方（或玩家指定的地點）。
+ */
+function scoutThink(world: World, u: Unit): void {
+  const hpRatio = u.hp / u.maxHp;
+  if (hpRatio < 0.35 || (u.action.type === 'retreat' && hpRatio < 0.85)) {
+    setAction(world, u, { type: 'retreat' });
+    return;
+  }
+  const enemy = nearestEnemyUnit(world, u, 6);
+  if (enemy) {
+    const d = Math.max(0.1, dist(u.x, u.y, enemy.x, enemy.y));
+    const x = Math.min(world.width - 1, Math.max(1, u.x + ((u.x - enemy.x) / d) * 6));
+    const y = Math.min(world.height - 1, Math.max(1, u.y + ((u.y - enemy.y) / d) * 6));
+    setAction(world, u, { type: 'scout', x, y });
+    return;
+  }
+  const target = world.fog?.factionId === u.factionId ? world.fog.scoutTarget : null;
+  const cur = u.action;
+  // 還在路上就繼續走（找不到路的地點就換一個）
+  const onTheWay = cur.type === 'scout' && (u.path.length > 0 || dist(u.x, u.y, cur.x, cur.y) < 2);
+  if (onTheWay && (!target || (cur.x === target.x && cur.y === target.y))) return;
+  const p = pickScoutTarget(world, u);
+  setAction(world, u, { type: 'scout', x: p.x, y: p.y });
 }
 
 /** 外交官沒有出使任務時，會去策反忠誠度低的敵人 */

@@ -16,6 +16,7 @@ import { inventionChance } from '../sim/systems/invention';
 import { guardiansOf, lairOfBuilding } from '../sim/systems/neutral';
 import { MONSTERS, treasureLabel } from '../sim/lairs';
 import { HeroCard } from './HeroCard';
+import { outpostLabel } from '../sim/systems/outposts';
 import { nemesisRecords } from '../sim/systems/nemesis';
 
 const ATTR_HINTS: Record<string, string> = {
@@ -79,6 +80,11 @@ function describeAction(world: World, u: Unit): string {
       return b ? `挖地道前往${world.factions[b.factionId].name}的${BUILDING_DEFS[b.type].name}（地底，無法被攻擊）` : '挖地道';
     }
     case 'ambush': return u.hidden ? '林中埋伏（隱身中）' : '前往森林埋伏';
+    case 'garrison': {
+      const o = world.outposts.find((p) => p.id === a.outpostId);
+      return o ? `駐守${outpostLabel(o)}` : '駐守據點';
+    }
+    case 'scout': return '偵察中';
     case 'subvert': {
       const t = world.unitMap.get(a.targetId);
       return t ? `潛入策反 ${RACES[t.race].name} ${t.name}（成功率 ${Math.round(persuadeChance(world, u, t) * 100)}%）` : '策反';

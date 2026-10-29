@@ -17,6 +17,7 @@ import { hasCommonEnemy, raceIsDiplomatic } from '../systems/diplomacy';
 import { getTreaty } from '../systems/treaties';
 import { activeLairs, guardiansOf } from '../systems/neutral';
 import { attackForbidden } from '../modifiers';
+import { assignGarrisons, decideOutposts } from '../systems/outposts';
 
 const DIPLOMACY_THINK_TICKS = 600;
 
@@ -38,6 +39,9 @@ export function runFactionAi(world: World, f: Faction): void {
   decideBuilding(world, f, units, cmds);
   decideCrafting(f, warriors, hasForge, cmds);
   setGatherWeights(f, hasForge);
+  // 據點：AI 自己決定駐守人數，玩家指揮的陣營由玩家決定；兩者都由大臣補人
+  if (!f.playerControlled) decideOutposts(world, f, warriors.filter((u) => u.troop !== 'scout').length);
+  assignGarrisons(world, f);
 
   f.commands.push(...cmds);
 }

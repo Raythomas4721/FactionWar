@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import type { EventKind, World } from '../sim/types';
+import type { EventKind, GameEvent, World } from '../sim/types';
 import { formatTime } from './ControlBar';
+import { RACES } from '../sim/races';
 
 const ICONS: Record<EventKind, string> = {
   combat: '⚔',
@@ -32,10 +33,27 @@ const FILTERS: { label: string; kinds: EventKind[] | null }[] = [
   { label: '建設', kinds: ['build', 'tech'] },
 ];
 
+/**
+ * 戰爭迷霧中，敵國內政（打造、建設、科技、疫病）的消息傳不過來；
+ * 別人之間的戰鬥也只聽得到和自己有關的。
+ */
+const SECRET_KINDS: EventKind[] = ['craft', 'invention', 'build', 'tech', 'health', 'info'];
+const RUMOR_KINDS: EventKind[] = ['combat', 'lair', 'hero'];
+function fogHidden(world: World, e: GameEvent): boolean {
+  const fog = world.fog;
+  if (!fog || e.factionId < 0 || e.factionId === fog.factionId) return false;
+  if (SECRET_KINDS.includes(e.kind)) return true;
+  const me = world.factions[fog.factionId];
+  return RUMOR_KINDS.includes(e.kind) && !e.text.includes(RACES[me.race].name) && !e.text.includes(me.name);
+}
+
 export function EventLog({ world }: { world: World }) {
   const [filter, setFilter] = useState(0);
   const kinds = FILTERS[filter].kinds;
-  const events = world.events.filter((e) => !kinds || kinds.includes(e.kind)).slice(-80).reverse();
+  const events = world.events
+    .filter((e) => (!kinds || kinds.includes(e.kind)) && !fogHidden(world, e))
+    .slice(-80)
+    .reverse();
   return (
     <section className="panel event-log">
       <div className="panel-head">

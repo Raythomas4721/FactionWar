@@ -2,13 +2,14 @@ import { useState } from 'react';
 import { PATHS } from '../sim/heroes';
 import type { World } from '../sim/types';
 import { formatTime } from './ControlBar';
+import { unitVisible } from '../sim/fog';
 
 /** 英雄榜：在世的英雄與戰死的傳奇 */
 export function HeroPanel({ world, onSelect }: { world: World; onSelect: (unitId: number) => void }) {
   const [tab, setTab] = useState<'alive' | 'fallen' | 'nemesis'>('alive');
   const nemeses = world.factions.flatMap((f) => f.nemeses.map((n) => ({ hunter: f, n })));
   const heroes = world.units
-    .filter((u) => u.hp > 0 && u.hero)
+    .filter((u) => u.hp > 0 && u.hero && unitVisible(world, u))
     .sort((a, b) => b.hero!.level - a.hero!.level || b.kills - a.kills);
   const legends = [...world.legends].reverse();
 

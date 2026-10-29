@@ -4,6 +4,7 @@ import { Rng } from './rng';
 import type { WorldRules } from './rules';
 import type { Difficulty, ModKey, RaceId, World } from './types';
 import { createWorld } from './world';
+import { createFog } from './fog';
 
 /**
  * 王國模式：玩家選一個王國，在 1v1 對峙地圖上對抗一個 AI 陣營。
@@ -15,6 +16,8 @@ export interface KingdomSetup {
   enemy: RaceId | 'random';
   difficulty: Difficulty;
   seed: number;
+  /** 戰爭迷霧（預設開啟） */
+  fog?: boolean;
   /** 玩家陣營也交給 AI（平衡測試用） */
   autoPlay?: boolean;
 }
@@ -97,6 +100,7 @@ export function createKingdomWorld(setup: KingdomSetup): World {
     aiNextPolicyAt: diff.enemyPolicies ? FIRST_POLICY_AT + 300 : Infinity,
     history: [],
   };
+  if (!setup.autoPlay && setup.fog !== false) createFog(world, player.id);
   return world;
 }
 

@@ -18,10 +18,10 @@ const kingdom = (seed = 1, difficulty: 'easy' | 'normal' | 'hard' = 'normal') =>
   createKingdomWorld({ player: 'human', enemy: 'orc', difficulty, seed });
 
 describe('1v1 對峙地圖', () => {
-  it('兩個營帳、四座巢穴，地形點對稱', () => {
+  it('兩個營帳、各一座巢穴，地形點對稱', () => {
     const map = generateDuelMap(new Rng(7));
     expect(map.hqSpots).toHaveLength(2);
-    expect(map.lairSpots).toHaveLength(4);
+    expect(map.lairSpots).toHaveLength(2);
     for (let y = 0; y < DUEL_H; y++) {
       for (let x = 0; x < DUEL_W; x++) {
         const a = map.tiles[y * DUEL_W + x];
@@ -35,9 +35,10 @@ describe('1v1 對峙地圖', () => {
 
   it('對稱的巢穴守衛相同', () => {
     const w = kingdom(3);
-    const kinds = w.lairs.filter((l) => l.monster !== 'dragon').map((l) => l.monster);
-    expect(kinds[0]).toBe(kinds[2]);
-    expect(kinds[1]).toBe(kinds[3]);
+    const lairs = w.lairs.filter((l) => l.monster !== 'dragon');
+    expect(lairs).toHaveLength(2);
+    expect(lairs[0].monster).toBe(lairs[1].monster);
+    expect(lairs[0].treasure.type).toBe(lairs[1].treasure.type);
   });
 });
 

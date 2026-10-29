@@ -1389,3 +1389,42 @@ canvas.casting {
 .app.mobile .kb-stance > * {
   flex: none;
 }
+.kb-outposts {
+  font-size: 12px;
+}
+.outpost-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 4px 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  white-space: nowrap;
+}
+.outpost-chip small {
+  color: var(--muted);
+}
+.outpost-chip button {
+  padding: 0 6px;
+  min-width: 22px;
+  line-height: 18px;
+}
+.garrison-count {
+  font-variant-numeric: tabular-nums;
+}
+.lg-outpost {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #2a2f36;
+  border: 2px solid #c9ced6;
+}
+.app.mobile .kb-outposts {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.app.mobile .kb-outposts > * {
+  flex: none;
+}

@@ -27,6 +27,7 @@ import { useIsMobile } from './ui/useIsMobile';
 import { createKingdomWorld, kingdomOutcome, type KingdomSetup } from './sim/kingdom';
 import { KingdomSetupPanel, saveKingdomWin } from './ui/KingdomSetup';
 import { KingdomBar, PolicyOffer } from './ui/KingdomBar';
+import { setScoutTarget } from './sim/fog';
 
 const randomSeed = () => Math.floor(Math.random() * 1_000_000);
 const MAX_STEPS_PER_FRAME = 400;
@@ -78,6 +79,7 @@ export function App() {
   const [showTrials, setShowTrials] = useState(false);
   const [showKingdom, setShowKingdom] = useState(false);
   const [offerLater, setOfferLater] = useState(false);
+  const [scoutMode, setScoutMode] = useState(false);
   const kingdomSetupRef = useRef<KingdomSetup | null>(null);
   const savedKingdomRef = useRef<World | null>(null);
   const [mobileTab, setMobileTab] = useState<MobileTab>('inspect');
@@ -200,6 +202,7 @@ export function App() {
       if (idx >= 0 && idx < POWER_ORDER.length && !worldRef.current.kingdom) setPower((p) => (p === POWER_ORDER[idx] ? null : POWER_ORDER[idx]));
       else if (e.key === 'Escape') {
         setPower(null);
+        setScoutMode(false);
         release(worldRef.current);
       } else if (['q', 'w', 'e'].includes(e.key.toLowerCase())) {
         const hero = possessedHero(worldRef.current);
@@ -342,6 +345,12 @@ export function App() {
     }
     const world = worldRef.current;
     const { x, y } = toTile(e);
+    if (scoutMode && world.fog) {
+      setScoutTarget(world, x, y);
+      setScoutMode(false);
+      setCastMsg({ ok: true, text: '🔭 斥候前往偵察指定地點' });
+      return;
+    }
     const hero = possessedHero(world);
     if (!power && hero) {
       setCastMsg({ ok: true, text: `👁 ${hero.name}：${commandHero(world, hero, x, y)}` });
@@ -400,7 +409,13 @@ export function App() {
         <div className="board">
           <TrialBanner world={world} onQuit={() => newGame(randomSeed())} />
           {world.kingdom ? (
-            <KingdomBar world={world} message={castMsg} onOpenOffer={() => setOfferLater(false)} />
+            <KingdomBar
+              world={world}
+              message={castMsg}
+              onOpenOffer={() => setOfferLater(false)}
+              scoutMode={scoutMode}
+              onScoutMode={setScoutMode}
+            />
           ) : (
             <GodBar world={world} selected={power} onSelect={setPower} message={castMsg} />
           )}
@@ -426,7 +441,7 @@ export function App() {
           <div className="canvas-wrap" style={{ aspectRatio: `${world.width * TILE_PX} / ${world.height * TILE_PX}` }}>
             <canvas
               ref={canvasRef}
-              className={power ? 'casting' : ''}
+              className={power || scoutMode ? 'casting' : ''}
               onClick={onCanvasClick}
               onPointerDown={onPointerDown}
               onPointerMove={onPointerMove}
@@ -536,6 +551,7 @@ function Legend() {
       <span><i className="lg-triangle" />外交官</span>
       <span><i className="lg-ellipse" />騎兵</span>
       <span><i className="lg-monster" />中立怪物（巢穴上標示寶藏：秘／寶／圖／龍）</span>
+      <span><i className="lg-outpost" />據點（礦／望／祠，站上去就能佔領）</span>
       <span><i className="lg-tile" style={{ background: '#3f7a3a' }} />森林</span>
       <span><i className="lg-tile" style={{ background: '#8a8f96' }} />石頭</span>
       <span><i className="lg-tile" style={{ background: '#e0904a' }} />鐵礦</span>

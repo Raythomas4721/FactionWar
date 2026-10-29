@@ -1,11 +1,13 @@
+import { OUTPOST_DEFS } from './outposts';
 import type { Faction, ModKey, Modifier, World } from './types';
 
-/** 陣營目前的倍率：所有還沒到期的修正相乘 */
+/** 陣營目前的倍率：所有還沒到期的修正與佔領的據點相乘 */
 export function modOf(world: World, factionId: number, key: ModKey): number {
   const f = world.factions[factionId];
-  if (!f || !f.modifiers.length) return 1;
+  if (!f || (!f.modifiers.length && !world.outposts.length)) return 1;
   let m = 1;
   for (const x of f.modifiers) if (x.until > world.tick) m *= x.mods[key] ?? 1;
+  for (const o of world.outposts) if (o.owner === factionId) m *= OUTPOST_DEFS[o.kind].mods?.[key] ?? 1;
   return m;
 }
 

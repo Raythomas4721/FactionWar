@@ -2,7 +2,9 @@ import { BUILDING_DEFS } from '../sim/buildings';
 import { BUILDING_SIZE } from '../sim/constants';
 import { itemDef } from '../sim/items';
 import { MONSTERS, treasureGlyph } from '../sim/lairs';
-import type { TileKind, Unit, World } from '../sim/types';
+import type { Outpost, TileKind, Unit, World } from '../sim/types';
+import { isExplored, isVisible, unitVisible } from '../sim/fog';
+import { CAPTURE_RADIUS, OUTPOST_DEFS } from '../sim/outposts';
 
 export const TILE_PX = 12;
 
@@ -76,6 +78,10 @@ export class CanvasRenderer {
   private terrain = document.createElement('canvas');
   private terrainVersion = -1;
   private terrainSeed = -1;
+  /** 戰爭迷霧：每格一個像素，放大時平滑模糊成柔和的邊緣 */
+  private fogCanvas = document.createElement('canvas');
+  private fogVersion = -1;
+  private fogWorld: World | null = null;
 
   constructor(private canvas: HTMLCanvasElement) {}
 
@@ -106,11 +112,15 @@ export class CanvasRenderer {
     }
     ctx.drawImage(this.terrain, 0, 0, w, h);
 
+    for (const o of world.outposts) this.drawOutpost(ctx, world, o);
+
     // 建築
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     for (const b of world.buildings) {
       const f = world.factions[b.factionId];
+      // 迷霧中只看得到去過的地方的建築
+      if (world.fog && b.factionId !== world.fog.factionId && !isExplored(world, b.x + 1, b.y + 1)) continue;
       const x = b.x * T;
       const y = b.y * T;
       const s = BUILDING_SIZE * T;
@@ -138,6 +148,7 @@ export class CanvasRenderer {
     for (const e of world.effects) {
       const life = e.ttl / e.maxTtl;
       if (e.text) continue;
+      if (world.fog && !isVisible(world, e.x1, e.y1) && !isVisible(world, e.x2, e.y2)) continue;
       ctx.globalAlpha = life;
       ctx.strokeStyle = e.color;
       ctx.beginPath();
@@ -157,10 +168,72 @@ export class CanvasRenderer {
     }
     ctx.globalAlpha = 1;
 
-    for (const u of world.units) this.drawUnit(ctx, world, u, selection);
+    for (const u of world.units) if (unitVisible(world, u)) this.drawUnit(ctx, world, u, selection);
     this.drawNemeses(ctx, world);
+    if (world.fog) this.drawFog(ctx, world, w, h);
     this.drawFloaters(ctx, world, camera);
     if (cursor) this.drawCursor(ctx, world, cursor);
+  }
+
+  /** 據點：圓形底座、佔領者顏色的外框，佔領中會有進度弧 */
+  private drawOutpost(ctx: CanvasRenderingContext2D, world: World, o: Outpost) {
+    const T = TILE_PX;
+    const def = OUTPOST_DEFS[o.kind];
+    const x = o.x * T;
+    const y = o.y * T;
+    const owner = o.owner !== null ? world.factions[o.owner] : null;
+    ctx.save();
+    ctx.setLineDash([3, 4]);
+    ctx.strokeStyle = owner ? owner.color : 'rgba(255,255,255,0.35)';
+    ctx.globalAlpha = 0.5;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(x, y, CAPTURE_RADIUS * T, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = owner ? shade(owner.color, -0.5) : '#2a2f36';
+    ctx.strokeStyle = owner ? owner.color : '#c9ced6';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, T * 0.95, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    if (o.capturing !== null && o.progress > 0) {
+      ctx.strokeStyle = world.factions[o.capturing].color;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(x, y, T * 1.25, -Math.PI / 2, -Math.PI / 2 + o.progress * Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = 'bold 12px "Microsoft JhengHei", "PingFang TC", sans-serif';
+    ctx.fillText(def.glyph, x, y + 1);
+  }
+
+  /** 迷霧：看不到的地方變暗，從沒去過的地方幾乎全黑 */
+  private drawFog(ctx: CanvasRenderingContext2D, world: World, w: number, h: number) {
+    const fog = world.fog!;
+    if (this.fogVersion !== fog.version || this.fogWorld !== world) {
+      this.fogVersion = fog.version;
+      this.fogWorld = world;
+      this.fogCanvas.width = world.width;
+      this.fogCanvas.height = world.height;
+      const fctx = this.fogCanvas.getContext('2d')!;
+      const img = fctx.createImageData(world.width, world.height);
+      for (let i = 0; i < fog.visible.length; i++) {
+        img.data[i * 4] = 6;
+        img.data[i * 4 + 1] = 8;
+        img.data[i * 4 + 2] = 11;
+        img.data[i * 4 + 3] = fog.visible[i] ? 0 : fog.lastSeen[i] > 0 ? 120 : 238;
+      }
+      fctx.putImageData(img, 0, 0);
+    }
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(this.fogCanvas, 0, 0, w, h);
+    ctx.restore();
   }
 
   /** 宿敵頭上畫紅色骷髏，仇恨越高越大 */
@@ -173,7 +246,7 @@ export class CanvasRenderer {
     ctx.textBaseline = 'middle';
     for (const [id, g] of grudge) {
       const u = world.unitMap.get(id);
-      if (!u || u.hp <= 0 || u.underground) continue;
+      if (!u || u.hp <= 0 || u.underground || !unitVisible(world, u)) continue;
       const size = Math.min(16, 9 + g / 25);
       ctx.font = `bold ${size}px sans-serif`;
       ctx.fillStyle = '#ff4d4d';
@@ -193,7 +266,7 @@ export class CanvasRenderer {
     ctx.lineWidth = 3;
     ctx.strokeStyle = 'rgba(0,0,0,0.75)';
     for (const e of world.effects) {
-      if (!e.text) continue;
+      if (!e.text || !isVisible(world, e.x1, e.y1)) continue;
       const life = e.ttl / e.maxTtl;
       const y = (e.y1 - (1 - life) * 1.4) * T;
       ctx.globalAlpha = Math.min(1, life * 1.6);
@@ -285,7 +358,7 @@ export class CanvasRenderer {
     if (u.role === 'warrior') {
       ctx.beginPath();
       if (u.troop === 'cavalry') ctx.ellipse(x, y, 6.5, 4, 0, 0, Math.PI * 2);
-      else ctx.arc(x, y, 4.5, 0, Math.PI * 2);
+      else ctx.arc(x, y, u.troop === 'scout' ? 3.2 : 4.5, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = '#fff';
       ctx.lineWidth = 1.2;
@@ -296,6 +369,14 @@ export class CanvasRenderer {
         ctx.beginPath();
         ctx.moveTo(x + 4, y + 5);
         ctx.lineTo(x + 4, y - 9);
+        ctx.stroke();
+      } else if (u.troop === 'scout') {
+        // 斥候：頭上一根白羽毛
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x - 1, y - 3);
+        ctx.lineTo(x + 2, y - 8);
         ctx.stroke();
       } else if (u.troop === 'ranger' || u.troop === 'sapper') {
         // 伏兵戴綠帽、工兵戴礦工帽
@@ -483,6 +564,7 @@ export function pickAt(world: World, tx: number, ty: number, radius = 0.9): Sele
   let best: Unit | null = null;
   let bestD = radius;
   for (const u of world.units) {
+    if (!unitVisible(world, u)) continue;
     const d = Math.hypot(u.x - tx, u.y - ty);
     if (d < bestD) {
       bestD = d;
@@ -491,7 +573,7 @@ export function pickAt(world: World, tx: number, ty: number, radius = 0.9): Sele
   }
   if (best) return { kind: 'unit', id: best.id };
   const b = world.buildings.find(
-    (b) => tx >= b.x && tx < b.x + BUILDING_SIZE && ty >= b.y && ty < b.y + BUILDING_SIZE,
+    (b) => tx >= b.x && tx < b.x + BUILDING_SIZE && ty >= b.y && ty < b.y + BUILDING_SIZE && isExplored(world, b.x + 1, b.y + 1),
   );
   return b ? { kind: 'building', id: b.id } : null;
 }
