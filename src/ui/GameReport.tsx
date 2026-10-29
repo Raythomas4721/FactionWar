@@ -1,3 +1,5 @@
+import { DIFFICULTIES, kingdomOutcome } from '../sim/kingdom';
+import { POLICIES } from '../sim/policies';
 import { analyzeGame } from '../sim/report';
 import { trialById } from '../sim/trials';
 import type { World } from '../sim/types';
@@ -7,10 +9,14 @@ interface Props {
   onAgain: () => void;
   onRetryTrial: () => void;
   onOpenTrials: () => void;
+  onKingdomAgain: () => void;
+  onOpenKingdom: () => void;
 }
 
 /** 戰局結束時的戰報：試煉結果、每個陣營為什麼輸、下次可以怎麼做 */
-export function GameReport({ world, onAgain, onRetryTrial, onOpenTrials }: Props) {
+export function GameReport({ world, onAgain, onRetryTrial, onOpenTrials, onKingdomAgain, onOpenKingdom }: Props) {
+  const kingdom = world.kingdom;
+  const outcome = kingdomOutcome(world);
   const trial = world.trial;
   const trialDef = trial ? trialById(trial.id) : undefined;
   const winner = world.winner !== null ? world.factions[world.winner] : null;
@@ -30,7 +36,28 @@ export function GameReport({ world, onAgain, onRetryTrial, onOpenTrials }: Props
             {trial.status !== 'won' && <div className="tip">💡 提示：{trialDef.hint}</div>}
           </div>
         )}
-        {!trial && (
+        {kingdom && (
+          <div className={`trial-result ${outcome}`}>
+            <div className="trial-result-title">
+              {outcome === 'won' ? '👑 勝利！' : '💀 戰敗'}（{DIFFICULTIES[kingdom.difficulty].name}）
+            </div>
+            <div>{world.endReason}</div>
+            {kingdom.history.length > 0 && (
+              <div className="policy-history">
+                {[kingdom.player, kingdom.enemy].map((id) => (
+                  <div key={id}>
+                    <b style={{ color: world.factions[id].color }}>{world.factions[id].name}</b> 的國策：
+                    {kingdom.history
+                      .filter((h) => h.factionId === id)
+                      .map((h) => `${POLICIES[h.policy].icon}${POLICIES[h.policy].name}`)
+                      .join('、') || '（沒有）'}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        {!trial && !kingdom && (
           <div className="game-over-title" style={{ color: winner?.color }}>
             {world.endReason}
           </div>
@@ -53,7 +80,15 @@ export function GameReport({ world, onAgain, onRetryTrial, onOpenTrials }: Props
           ))}
         </div>
         <div className="report-actions">
-          {trial ? (
+          {kingdom ? (
+            <>
+              <button className="primary" onClick={onKingdomAgain}>
+                {outcome === 'won' ? '再戰一場' : '再挑戰一次'}
+              </button>
+              <button onClick={onOpenKingdom}>換王國／難度</button>
+              <button onClick={onAgain}>自由模式</button>
+            </>
+          ) : trial ? (
             <>
               <button className="primary" onClick={onRetryTrial}>
                 {trial.status === 'won' ? '再挑戰一次' : '再試一次'}

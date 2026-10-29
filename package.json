@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "balance": "tsx tools/balance.ts"
+    "balance": "tsx tools/balance.ts",
+    "duel": "tsx tools/duel.ts"
   },
   "dependencies": {
     "react": "^18.3.1",

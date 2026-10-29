@@ -14,6 +14,7 @@ import { buildingQualityOf } from './invention';
 import { hasRelic } from './neutral';
 import { eventMult } from '../events';
 import { moveTo } from './movement';
+import { modOf } from '../modifiers';
 
 export function isBuildingUnlocked(f: Faction, type: BuildingType): boolean {
   return type !== 'hq' && f.tech >= BUILDING_DEFS[type].tech;
@@ -123,7 +124,7 @@ export function updateBuildings(world: World): void {
     if (b.hp <= 0 || !b.complete) continue;
     const f = world.factions[b.factionId];
     if (b.type === 'farm') {
-      f.resources.food += FARM_FOOD_PER_TICK * b.quality * (hasRelic(world, f.id, 'harvest') ? 1.4 : 1) * eventMult(world, 'farm');
+      f.resources.food += FARM_FOOD_PER_TICK * b.quality * (hasRelic(world, f.id, 'harvest') ? 1.4 : 1) * eventMult(world, 'farm') * modOf(world, f.id, 'food');
     }
     if (b.type === 'hq') f.resources.food += HQ_FOOD_PER_TICK;
 
@@ -148,7 +149,8 @@ export function updateBuildings(world: World): void {
     b.cooldown = turret.cooldown;
     world.effects.push({ x1: c.x, y1: c.y, x2: target.x, y2: target.y, ttl: 3, maxTtl: 3, color: f.color });
     const dmg =
-      (b.type === 'tower' ? turret.dmg * RACES[f.race].towerDamageMult : turret.dmg) * world.rules.damageMult * b.quality;
+      (b.type === 'tower' ? turret.dmg * RACES[f.race].towerDamageMult * modOf(world, f.id, 'tower') : turret.dmg) *
+      world.rules.damageMult * b.quality;
     damageUnit(world, target, dmg, f.id, `${f.name}的${BUILDING_DEFS[b.type].name}`);
   }
 }

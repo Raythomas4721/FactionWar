@@ -3,7 +3,7 @@ import {
   AI_INTERVAL, HQ_REST_RADIUS, MANA_MAX, MANA_REGEN, MAP_H, MAP_W, MAX_TECH, TECH_THRESHOLDS,
 } from './constants';
 import { ITEM_DEFS } from './items';
-import { generateMap } from './map';
+import { DUEL_H, DUEL_W, generateDuelMap, generateMap } from './map';
 import { clamp, dist } from './math';
 import { RACES, RACE_ORDER, RIVALRY } from './races';
 import { Rng } from './rng';
@@ -28,6 +28,8 @@ import { guardianRegen, guardianThink, hasRelic, setupLairs } from './systems/ne
 import { updateHeroes } from './systems/heroSystem';
 import { updateWorldEvents } from './events';
 import { evaluateTrial } from './trials';
+import { updateKingdom } from './policies';
+import { modOf } from './modifiers';
 import { ambushTick, tunnelTick, updateStealth } from './systems/troopActions';
 import { moveTo } from './systems/movement';
 
@@ -35,6 +37,10 @@ export interface WorldOptions {
   rules?: Partial<WorldRules>;
   width?: number;
   height?: number;
+  /** 1v1 對峙地圖（左右兩端各一個營帳） */
+  duel?: boolean;
+  /** 依序指定參戰種族（不洗牌，可以讓同一位置固定是玩家） */
+  races?: RaceId[];
 }
 
 /** 全員結盟要維持多久才算共治勝利（5 分鐘） */
@@ -111,17 +117,23 @@ export function createFaction(world: World, race: RaceId, races: RaceId[]): Fact
     fallReason: null,
     nemeses: [],
     attrBonus: { str: 0, agi: 0, int: 0, con: 0, cha: 0 },
+    modifiers: [],
+    aggression: 1,
+    counterPlay: false,
   };
   world.factions.push(f);
   return f;
 }
 
 export function createWorld(seed: number, opts: WorldOptions = {}): World {
-  const world = createBlankWorld(seed, opts.width ?? MAP_W, opts.height ?? MAP_H, opts.rules);
-  const map = generateMap(world.rng, world.width, world.height, world.rules.resourceRichness);
+  const width = opts.width ?? (opts.duel ? DUEL_W : MAP_W);
+  const height = opts.height ?? (opts.duel ? DUEL_H : MAP_H);
+  const world = createBlankWorld(seed, width, height, opts.rules);
+  const richness = world.rules.resourceRichness;
+  const map = opts.duel ? generateDuelMap(world.rng, width, height, richness) : generateMap(world.rng, width, height, richness);
   world.tiles = map.tiles;
 
-  const races = pickRaces(world);
+  const races = opts.races?.slice(0, map.hqSpots.length) ?? pickRaces(world, map.hqSpots.length);
   races.forEach((race, i) => {
     const f = createFaction(world, race, races);
     const spot = map.hqSpots[i];
@@ -140,11 +152,11 @@ export function createWorld(seed: number, opts: WorldOptions = {}): World {
   return world;
 }
 
-/** 世界法則指定的種族優先，不足 4 個就從其他種族隨機補上 */
-function pickRaces(world: World): RaceId[] {
-  const chosen = [...new Set(world.rules.raceSelection)].filter((r) => RACE_ORDER.includes(r)).slice(0, 4);
+/** 世界法則指定的種族優先，不足的從其他種族隨機補上 */
+function pickRaces(world: World, count: number): RaceId[] {
+  const chosen = [...new Set(world.rules.raceSelection)].filter((r) => RACE_ORDER.includes(r)).slice(0, count);
   const rest = world.rng.shuffle(RACE_ORDER.filter((r) => !chosen.includes(r)));
-  return world.rng.shuffle([...chosen, ...rest.slice(0, 4 - chosen.length)]);
+  return world.rng.shuffle([...chosen, ...rest.slice(0, count - chosen.length)]);
 }
 
 function starterWeapon(world: World, race: RaceId): Item {
@@ -186,6 +198,7 @@ export function step(world: World): void {
   updateStealth(world);
   updateHeroes(world);
   updateWorldEvents(world);
+  updateKingdom(world);
   updateDiplomacy(world);
 
   const besieged = new Set<number>();
@@ -276,7 +289,7 @@ function updateResearch(world: World): void {
       .filter((b) => b.complete)
       .reduce((s, b) => s + b.quality, 0);
     const wisdom = hasRelic(world, f.id, 'wisdom') ? 1.5 : 1;
-    f.research += 0.004 * intSum * (1 + RACES[f.race].libraryBonus * libraries) * world.rules.researchMult * wisdom;
+    f.research += 0.004 * intSum * (1 + RACES[f.race].libraryBonus * libraries) * world.rules.researchMult * wisdom * modOf(world, f.id, 'research');
     while (f.tech < MAX_TECH && f.research >= TECH_THRESHOLDS[f.tech + 1]) {
       f.tech++;
       logEvent(world, 'tech', `${f.name} 科技提升到 Lv${f.tech}，解鎖：${unlocksAt(f, f.tech)}`, f.id);

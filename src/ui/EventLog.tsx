@@ -15,12 +15,14 @@ const ICONS: Record<EventKind, string> = {
   lair: '🏆',
   hero: '⭐',
   world: '🌍',
+  policy: '📜',
   info: 'ℹ',
 };
 
 const FILTERS: { label: string; kinds: EventKind[] | null }[] = [
   { label: '全部', kinds: null },
   { label: '英雄', kinds: ['hero'] },
+  { label: '國策', kinds: ['policy'] },
   { label: '天象', kinds: ['world'] },
   { label: '戰鬥', kinds: ['combat', 'faction', 'lair'] },
   { label: '神蹟', kinds: ['god'] },

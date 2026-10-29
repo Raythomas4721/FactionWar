@@ -15,6 +15,7 @@ interface Props {
   onSeed: (seed: number) => void;
   onOpenRules: () => void;
   onOpenTrials: () => void;
+  onOpenKingdom: () => void;
 }
 
 export function formatTime(tick: number): string {
@@ -23,7 +24,7 @@ export function formatTime(tick: number): string {
 }
 
 export function ControlBar({
-  world, paused, speed, onTogglePause, onSpeed, onNewGame, onRestart, onSeed, onOpenRules, onOpenTrials,
+  world, paused, speed, onTogglePause, onSpeed, onNewGame, onRestart, onSeed, onOpenRules, onOpenTrials, onOpenKingdom,
 }: Props) {
   const [seedInput, setSeedInput] = useState('');
   return (
@@ -40,6 +41,7 @@ export function ControlBar({
         ))}
       </div>
       <span className="clock">⏱ {formatTime(world.tick)} / {formatTime(world.maxTicks)}</span>
+      <button className="kingdom-btn" onClick={onOpenKingdom}>👑 王國模式</button>
       <button onClick={onOpenRules}>📜 世界法則</button>
       <button onClick={onOpenTrials}>🏆 試煉</button>
       <span className="spacer" />

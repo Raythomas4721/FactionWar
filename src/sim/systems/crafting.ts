@@ -8,6 +8,7 @@ import {
   canAfford, centerOf, factionBuildings, hasCompleted, hqOf, logEvent, pay, sickMult, unitLabel,
 } from '../util';
 import { moveTo } from './movement';
+import { modOf } from '../modifiers';
 
 export function isItemUnlocked(def: ItemDef, f: Faction, hasForge: boolean): boolean {
   return f.tech >= def.tech && (!def.needsForge || hasForge) && (!def.onlyRace || def.onlyRace === f.race);
@@ -100,7 +101,7 @@ export function craftTick(world: World, u: Unit): boolean {
   const item: Item = {
     id: world.nextId++,
     defId: def.id,
-    quality: rollQuality(world.rng, u.attrs, u.race, f.tech, !!forge, def),
+    quality: rollQuality(world.rng, u.attrs, u.race, f.tech, !!forge, def) * modOf(world, f.id, 'quality'),
     maker: u.name,
     custom: def.inventor ? def : undefined,
   };

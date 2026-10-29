@@ -24,6 +24,9 @@ import { EventsBar, TrialBanner } from './ui/WorldBanners';
 import { SkillButtons } from './ui/SkillButtons';
 import { HeroTouchControls, MapControls, MobileTabs, type MobileTab } from './ui/MapOverlays';
 import { useIsMobile } from './ui/useIsMobile';
+import { createKingdomWorld, kingdomOutcome, type KingdomSetup } from './sim/kingdom';
+import { KingdomSetupPanel, saveKingdomWin } from './ui/KingdomSetup';
+import { KingdomBar, PolicyOffer } from './ui/KingdomBar';
 
 const randomSeed = () => Math.floor(Math.random() * 1_000_000);
 const MAX_STEPS_PER_FRAME = 400;
@@ -73,6 +76,10 @@ export function App() {
   const [castMsg, setCastMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [showRules, setShowRules] = useState(false);
   const [showTrials, setShowTrials] = useState(false);
+  const [showKingdom, setShowKingdom] = useState(false);
+  const [offerLater, setOfferLater] = useState(false);
+  const kingdomSetupRef = useRef<KingdomSetup | null>(null);
+  const savedKingdomRef = useRef<World | null>(null);
   const [mobileTab, setMobileTab] = useState<MobileTab>('inspect');
   const mobile = useIsMobile();
   const savedTrialRef = useRef<World | null>(null);
@@ -95,7 +102,9 @@ export function App() {
   followRef.current = follow;
   heroZoomRef.current = heroZoom;
   speedRef.current = speed;
-  pausedRef.current = paused || showRules || showTrials;
+  // 國策卡出現時暫停，讓玩家慢慢想（按「稍後再選」可以先繼續）
+  const offerOpen = !!worldRef.current.kingdom?.offer && !offerLater && !worldRef.current.over;
+  pausedRef.current = paused || showRules || showTrials || showKingdom || offerOpen;
   selectionRef.current = selection;
   powerRef.current = power;
 
@@ -188,7 +197,7 @@ export function App() {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLButtonElement) return;
       const idx = Number(e.key) - 1;
-      if (idx >= 0 && idx < POWER_ORDER.length) setPower((p) => (p === POWER_ORDER[idx] ? null : POWER_ORDER[idx]));
+      if (idx >= 0 && idx < POWER_ORDER.length && !worldRef.current.kingdom) setPower((p) => (p === POWER_ORDER[idx] ? null : POWER_ORDER[idx]));
       else if (e.key === 'Escape') {
         setPower(null);
         release(worldRef.current);
@@ -215,6 +224,7 @@ export function App() {
   const newGame = useCallback(
     (seed: number) => {
       worldRef.current = createWorld(seed, { rules });
+      kingdomSetupRef.current = null;
       manualCamRef.current = null;
       setSelection(null);
       setPaused(false);
@@ -223,8 +233,22 @@ export function App() {
     [rules],
   );
 
+  const startKingdom = useCallback((setup: KingdomSetup) => {
+    worldRef.current = createKingdomWorld(setup);
+    kingdomSetupRef.current = setup;
+    manualCamRef.current = null;
+    setSelection(null);
+    setPaused(false);
+    setPower(null);
+    setOfferLater(false);
+    const k = worldRef.current.kingdom!;
+    setCastMsg({ ok: true, text: `王國模式：${worldRef.current.factions[k.player].name} 對 ${worldRef.current.factions[k.enemy].name}` });
+    setShowKingdom(false);
+  }, []);
+
   const startTrial = useCallback((def: TrialDef) => {
     worldRef.current = createTrialWorld(def);
+    kingdomSetupRef.current = null;
     manualCamRef.current = null;
     setSelection(null);
     setPaused(false);
@@ -338,6 +362,14 @@ export function App() {
 
   const world = worldRef.current;
   const possessed = possessedHero(world);
+  // 玩家選完國策後，下一張卡出現時要重新跳出來
+  if (offerLater && !world.kingdom?.offer) setOfferLater(false);
+  // 王國模式打贏時記錄（每個世界只記一次）
+  if (kingdomOutcome(world) === 'won' && savedKingdomRef.current !== world) {
+    savedKingdomRef.current = world;
+    const k = world.kingdom!;
+    saveKingdomWin(world.factions[k.player].race, k.difficulty);
+  }
   // 通過試煉時記錄最佳時間（每個世界只記一次）
   if (world.trial?.status === 'won' && savedTrialRef.current !== world) {
     savedTrialRef.current = world;
@@ -362,11 +394,16 @@ export function App() {
         onSeed={newGame}
         onOpenRules={() => setShowRules(true)}
         onOpenTrials={() => setShowTrials(true)}
+        onOpenKingdom={() => setShowKingdom(true)}
       />
       <div className="main">
         <div className="board">
           <TrialBanner world={world} onQuit={() => newGame(randomSeed())} />
-          <GodBar world={world} selected={power} onSelect={setPower} message={castMsg} />
+          {world.kingdom ? (
+            <KingdomBar world={world} message={castMsg} onOpenOffer={() => setOfferLater(false)} />
+          ) : (
+            <GodBar world={world} selected={power} onSelect={setPower} message={castMsg} />
+          )}
           <EventsBar world={world} />
           {possessed?.hero && !mobile && (
             <div className="possess-bar">
@@ -419,9 +456,13 @@ export function App() {
                 if (def) startTrial(def);
               }}
               onOpenTrials={() => setShowTrials(true)}
+              onKingdomAgain={() => {
+                const setup = kingdomSetupRef.current;
+                if (setup) startKingdom({ ...setup, seed: randomSeed() });
+              }}
+              onOpenKingdom={() => setShowKingdom(true)}
             />
           )}
-          {showTrials && <TrialsPanel onStart={startTrial} onClose={() => setShowTrials(false)} />}
           {!mobile && <Legend />}
         </div>
         <div className="side">
@@ -438,6 +479,9 @@ export function App() {
       </div>
       {!mobile && <FactionPanel world={world} />}
       {mobile && <MobileTabs tab={mobileTab} onTab={setMobileTab} />}
+      {offerOpen && <PolicyOffer world={world} onLater={() => setOfferLater(true)} />}
+      {showKingdom && <KingdomSetupPanel onStart={startKingdom} onClose={() => setShowKingdom(false)} />}
+      {showTrials && <TrialsPanel onStart={startTrial} onClose={() => setShowTrials(false)} />}
       {showRules && (
         <RulesPanel
           rules={rules}

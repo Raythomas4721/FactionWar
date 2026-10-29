@@ -14,7 +14,13 @@ export interface MapResult {
   lairSpots: Point[];
   /** 中央巨龍之巢的左上角（2x2） */
   dragonSpot: Point;
+  /** 1v1 地圖：巢穴成對擺放（第 i 座與第 i+2 座點對稱），守衛與寶藏種類相同 */
+  pairedLairs?: boolean;
 }
+
+/** 1v1 對峙地圖的大小 */
+export const DUEL_W = 56;
+export const DUEL_H = 36;
 
 const AMOUNTS: Record<TileKind, number> = {
   grass: 0, water: 0, forest: 50, rock: 100, ore: 70, berries: 35,
@@ -113,7 +119,94 @@ function tryGenerate(rng: Rng, w: number, h: number, richness: number): MapResul
   return { tiles, hqSpots, lairSpots: mirror(LAIR_LOCAL), dragonSpot: { x: qw - 1, y: qh - 1 } };
 }
 
-function isConnected(map: MapResult, w: number, h: number): boolean {
+/**
+ * 1v1 對峙地圖：先產生左半邊，再以地圖中心做點對稱（旋轉 180°）得到右半邊。
+ * 雙方營帳在左右兩端，各有兩座巢穴，中央是巨龍之巢。
+ */
+export function generateDuelMap(rng: Rng, w = DUEL_W, h = DUEL_H, richness = 1): MapResult {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const result = tryGenerateDuel(rng, w, h, richness);
+    if (isConnected(result, w, h, [...result.lairSpots, result.dragonSpot])) return result;
+  }
+  throw new Error('無法產生連通的地圖');
+}
+
+function tryGenerateDuel(rng: Rng, w: number, h: number, richness: number): MapResult {
+  const hw = Math.floor(w / 2);
+  const midY = Math.floor(h / 2);
+  const half: { kind: TileKind; amount: number }[] = Array.from({ length: hw * h }, () => ({ kind: 'grass', amount: 0 }));
+  const hq: Point = { x: 4, y: midY - 1 };
+  const lairs: Point[] = [{ x: hw - 11, y: 4 }, { x: hw - 11, y: h - 6 }];
+  const dragon: Point = { x: hw - 1, y: midY - 1 };
+  const reserved = [
+    { x: hq.x + 1, y: hq.y + 1, r: BASE_CLEAR_RADIUS },
+    ...lairs.map((l) => ({ x: l.x + 1, y: l.y + 1, r: 2.2 })),
+    { x: hw, y: midY, r: 1.8 },
+  ];
+  const canPlace = (x: number, y: number) =>
+    x >= 0 && y >= 0 && x < hw && y < h &&
+    half[y * hw + x].kind === 'grass' &&
+    reserved.every((r) => Math.hypot(x + 0.5 - r.x, y + 0.5 - r.y) > r.r);
+
+  const blob = (cx: number, cy: number, n: number, kind: TileKind, baseAmount = AMOUNTS[kind]) => {
+    const amount = Math.round(baseAmount * richness);
+    const cells: Point[] = [];
+    if (canPlace(cx, cy)) {
+      half[cy * hw + cx] = { kind, amount };
+      cells.push({ x: cx, y: cy });
+    }
+    for (let tries = 0; cells.length < n && tries < n * 12; tries++) {
+      const from = cells.length ? rng.pick(cells) : { x: cx, y: cy };
+      const dir = rng.int(0, 3);
+      const nx = from.x + (dir === 0 ? 1 : dir === 1 ? -1 : 0);
+      const ny = from.y + (dir === 2 ? 1 : dir === 3 ? -1 : 0);
+      if (canPlace(nx, ny)) {
+        half[ny * hw + nx] = { kind, amount };
+        cells.push({ x: nx, y: ny });
+      }
+    }
+  };
+
+  // 基地旁固定的資源
+  blob(hq.x + 6, hq.y - 3, 6, 'berries');
+  blob(hq.x + 6, hq.y + 4, 6, 'berries');
+  blob(hq.x, hq.y - 8, 14, 'forest');
+  blob(hq.x, hq.y + 9, 14, 'forest');
+  blob(hq.x + 8, hq.y + 8, 8, 'rock');
+  blob(hq.x + 9, hq.y - 7, 7, 'ore');
+  // 隨機地形
+  blob(rng.int(hw - 12, hw - 6), rng.int(midY - 6, midY + 5), rng.int(8, 12), 'water');
+  blob(rng.int(hw - 14, hw - 4), rng.int(midY + 3, h - 6), 14, 'forest');
+  blob(rng.int(hw - 14, hw - 4), rng.int(5, midY - 3), 10, 'forest');
+  blob(rng.int(hw - 8, hw - 2), rng.int(0, h - 1), 5, 'rock');
+  // 中央富礦（巨龍守護）與巢穴旁的遠古礦脈
+  blob(hw - 3, midY - 3, 6, 'ore', 140);
+  for (const l of lairs) {
+    blob(l.x + 1, l.y < midY ? l.y + 4 : l.y - 3, 5, 'ore', 220);
+    blob(l.x + 4, l.y, 4, 'ore', 220);
+  }
+
+  // 點對稱：(x, y) ↔ (w-1-x, h-1-y)
+  const tiles: Tile[] = Array.from({ length: w * h }, () => ({ kind: 'grass', amount: 0 }));
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < hw; x++) {
+      const src = half[y * hw + x];
+      tiles[y * w + x] = { kind: src.kind, amount: src.amount };
+      tiles[(h - 1 - y) * w + (w - 1 - x)] = { kind: src.kind, amount: src.amount };
+    }
+  }
+  // 2x2 建築的左上角旋轉後的位置
+  const rotate = (p: Point): Point => ({ x: w - 2 - p.x, y: h - 2 - p.y });
+  return {
+    tiles,
+    hqSpots: [hq, rotate(hq)],
+    lairSpots: [...lairs, ...lairs.map(rotate)],
+    dragonSpot: dragon,
+    pairedLairs: true,
+  };
+}
+
+function isConnected(map: MapResult, w: number, h: number, extra: Point[] = []): boolean {
   const seen = new Uint8Array(w * h);
   const start = map.hqSpots[0];
   const queue = [start.y * w + start.x];
@@ -132,5 +225,5 @@ function isConnected(map: MapResult, w: number, h: number): boolean {
       queue.push(ni);
     }
   }
-  return map.hqSpots.every((p) => seen[p.y * w + p.x] === 1);
+  return [...map.hqSpots, ...extra].every((p) => seen[p.y * w + p.x] === 1);
 }

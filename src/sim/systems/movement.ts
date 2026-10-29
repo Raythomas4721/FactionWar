@@ -3,6 +3,7 @@ import { speedOf } from '../stats';
 import { TROOP_DEFS } from '../troops';
 import type { Point, Unit, World } from '../types';
 import { isPassable } from '../util';
+import { modOf } from '../modifiers';
 
 const DIRS = [
   [1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1],
@@ -137,7 +138,7 @@ export function moveTo(world: World, u: Unit, cx: number, cy: number, stopDist: 
   let speed =
     speedOf(u.attrs) * (u.sick ? 0.75 : 1) * TROOP_DEFS[u.troop].speedMult *
     (world.factions[u.factionId]?.relics.includes('swift') ? 1.2 : 1) *
-    (u.hero?.talents.includes('swiftness') ? 1.2 : 1);
+    (u.hero?.talents.includes('swiftness') ? 1.2 : 1) * modOf(world, u.factionId, 'speed');
   const startX = u.x;
   const startY = u.y;
   while (speed > 0) {

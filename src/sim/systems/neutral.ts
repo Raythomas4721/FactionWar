@@ -34,7 +34,10 @@ function spawnGuardian(world: World, beast: Faction, kind: MonsterKind, home: Po
 /** 在四個象限與地圖中央放置巢穴與守衛，並隨機分配寶藏 */
 export function setupLairs(world: World, beast: Faction, map: MapResult, createLair: (x: number, y: number) => number): void {
   const rng = world.rng;
-  const kinds: MonsterKind[] = rng.shuffle(['wolf', 'golem', 'treant', rng.pick(['wolf', 'golem', 'treant'] as MonsterKind[])]);
+  let kinds: MonsterKind[] = rng.shuffle(['wolf', 'golem', 'treant', rng.pick(['wolf', 'golem', 'treant'] as MonsterKind[])]);
+  // 1v1 地圖：對稱的兩座巢穴守衛相同、寶藏種類相同，雙方才公平
+  const pairRolls = map.pairedLairs ? [rng.int(0, 3), rng.int(0, 3)] : null;
+  if (map.pairedLairs) kinds = [kinds[0], kinds[1], kinds[0], kinds[1]];
   const relics = rng.shuffle([...RELIC_IDS]);
   const artifacts = rng.shuffle([...ARTIFACTS]);
   const bases = rng.shuffle([...LEGENDARY_BASES]);
@@ -50,7 +53,7 @@ export function setupLairs(world: World, beast: Faction, map: MapResult, createL
   };
 
   map.lairSpots.forEach((spot, i) => {
-    const roll = rng.int(0, 3);
+    const roll = pairRolls ? pairRolls[i % 2] : rng.int(0, 3);
     const treasure: Treasure =
       roll === 1 && artifacts.length ? { type: 'artifact', item: artifacts.pop()! }
         : roll === 2 ? { type: 'blueprint', baseId: bases.pop() ?? 'steelBlade' }

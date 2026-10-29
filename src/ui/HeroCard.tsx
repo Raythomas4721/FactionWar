@@ -1,5 +1,5 @@
 import { MAX_LEVEL, PATHS, TALENTS, XP_LEVELS } from '../sim/heroes';
-import { chooseTalent, heroSummary, possess, release } from '../sim/systems/heroSystem';
+import { canPossess, chooseTalent, heroSummary, possess, release } from '../sim/systems/heroSystem';
 import { SkillButtons } from './SkillButtons';
 import type { Unit, World } from '../sim/types';
 
@@ -62,7 +62,7 @@ export function HeroCard({ world, u }: { world: World; u: Unit }) {
         <SkillButtons world={world} u={u} />
         {h.possessed ? (
           <button onClick={() => release(world)}>解除附身</button>
-        ) : (
+        ) : canPossess(world, u) && (
           <button onClick={() => possess(world, u)} title="親自操控這名英雄：點地圖移動、點敵人攻擊">
             👁 附身
           </button>

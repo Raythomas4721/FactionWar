@@ -48,26 +48,29 @@ export function FactionCommands({ world, f }: { world: World; f: Faction }) {
           </button>
         ))}
       </div>
-      <div className="cmd-row">
-        <span className="cmd-label">外交</span>
-        {others.map((o) => {
-          const t = getTreaty(world, f.id, o.id);
-          return (
-            <span key={o.id} className="dip-group" style={{ borderColor: o.color }}>
-              <span style={{ color: o.color }}>{TREATY_ICONS[t]} {o.name.slice(0, 2)}</span>
-              {t === 'war' && (
-                <button onClick={() => issueCommand(world, f.id, { type: 'propose', target: o.id, proposal: 'peace' })}>求和</button>
-              )}
-              {t === 'peace' && (
-                <button onClick={() => issueCommand(world, f.id, { type: 'propose', target: o.id, proposal: 'alliance' })}>結盟</button>
-              )}
-              {t !== 'war' && (
-                <button onClick={() => issueCommand(world, f.id, { type: 'declareWar', target: o.id })}>宣戰</button>
-              )}
-            </span>
-          );
-        })}
-      </div>
+      {/* 王國模式是你死我活的對決，沒有外交 */}
+      {!world.kingdom && (
+        <div className="cmd-row">
+          <span className="cmd-label">外交</span>
+          {others.map((o) => {
+            const t = getTreaty(world, f.id, o.id);
+            return (
+              <span key={o.id} className="dip-group" style={{ borderColor: o.color }}>
+                <span style={{ color: o.color }}>{TREATY_ICONS[t]} {o.name.slice(0, 2)}</span>
+                {t === 'war' && (
+                  <button onClick={() => issueCommand(world, f.id, { type: 'propose', target: o.id, proposal: 'peace' })}>求和</button>
+                )}
+                {t === 'peace' && (
+                  <button onClick={() => issueCommand(world, f.id, { type: 'propose', target: o.id, proposal: 'alliance' })}>結盟</button>
+                )}
+                {t !== 'war' && (
+                  <button onClick={() => issueCommand(world, f.id, { type: 'declareWar', target: o.id })}>宣戰</button>
+                )}
+              </span>
+            );
+          })}
+        </div>
+      )}
       <div className="cmd-row">
         <span className="cmd-label">訓練</span>
         {ROLES.map((role) => {

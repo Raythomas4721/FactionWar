@@ -12,6 +12,7 @@ import {
 } from '../util';
 import { damageUnit } from './combat';
 import { nemesisAlert } from './nemesis';
+import { modOf } from '../modifiers';
 
 const has = (u: Unit, t: TalentId) => !!u.hero?.talents.includes(t);
 
@@ -146,7 +147,7 @@ function autoChoose(world: World, u: Unit): void {
 export function gainXp(world: World, u: Unit, xp: number): void {
   const h = u.hero;
   if (!h) return;
-  h.xp += xp;
+  h.xp += xp * modOf(world, u.factionId, 'xp');
   while (h.level < MAX_LEVEL && h.xp >= XP_LEVELS[h.level + 1]) {
     if (h.choice) autoChoose(world, u);
     h.level++;
@@ -574,7 +575,13 @@ export function followerThink(world: World, u: Unit): boolean {
   return true;
 }
 
+/** 王國模式只能附身自己陣營的英雄 */
+export function canPossess(world: World, u: Unit): boolean {
+  return !!u.hero && u.hp > 0 && (!world.kingdom || u.factionId === world.kingdom.player);
+}
+
 export function possess(world: World, u: Unit): void {
+  if (!canPossess(world, u)) return;
   release(world);
   for (const o of world.units) if (o.hero) o.hero.possessed = false;
   if (u.hero && u.hp > 0) {

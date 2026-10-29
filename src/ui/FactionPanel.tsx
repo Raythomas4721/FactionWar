@@ -53,7 +53,7 @@ function FactionCard({ world, f }: { world: World; f: Faction }) {
         <span className="score">分數 {score(world, f)}</span>
       </div>
 
-      {f.alive && (
+      {f.alive && !world.kingdom && (
         <label className="control-toggle">
           <input
             type="checkbox"

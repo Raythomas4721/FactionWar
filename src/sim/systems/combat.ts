@@ -21,6 +21,7 @@ import {
   AMBUSH_MULT, CHARGE_DISTANCE, CHARGE_MULT, LIFESTEAL, SAPPER_VS_BUILDING, SPEAR_VS_CAVALRY, STING_INFECT,
 } from '../troops';
 import { moveTo } from './movement';
+import { modOf } from '../modifiers';
 
 const BUILDING_ARMOR = 2;
 
@@ -58,7 +59,7 @@ const attackCooldown = (world: World, u: Unit) =>
 export function damageUnit(world: World, target: Unit, dmg: number, byFaction: number, byLabel: string, byUnit?: Unit): void {
   if (target.hp <= 0) return;
   const shielded = target.shieldUntil !== undefined && world.tick < target.shieldUntil ? 0.5 : 1;
-  target.hp -= dmg * heroDamageTakenMult(target) * shielded;
+  target.hp -= dmg * heroDamageTakenMult(target) * shielded * modOf(world, target.factionId, 'defense');
   // 不死之怒：生命不會低於 1
   if (target.hp <= 0 && target.hero && world.tick < target.hero.undyingUntil) target.hp = 1;
   if (!RACES[target.race].fearless) {
@@ -174,7 +175,8 @@ export function strikeUnit(world: World, u: Unit, target: Unit): void {
   const hero = attackModifiers(world, u, target);
   if (hero.crit) world.effects.push({ x1: target.x, y1: target.y, x2: target.x, y2: target.y, ttl: 4, maxTtl: 4, radius: 0.8, color: '#ffe14d' });
   const raw =
-    rawDamage(u) * world.rng.range(0.85, 1.15) * world.rules.damageMult * troopMultiplier(u, target) * holyFire * war * hero.mult;
+    rawDamage(u) * world.rng.range(0.85, 1.15) * world.rules.damageMult * troopMultiplier(u, target) * holyFire * war * hero.mult *
+    modOf(world, u.factionId, 'damage');
   u.charge = 0;
   revealAfterAttack(world, u);
   const dmg = mitigatedDamage(raw, target.attrs, armorOf(target) + auraBonus(world, target).armor, hasTrait(u.weapon, 'pierce'));

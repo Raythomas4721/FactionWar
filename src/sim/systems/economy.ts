@@ -6,6 +6,7 @@ import { areHostile, centerOf, hqOf, sickMult } from '../util';
 import { moveTo } from './movement';
 import { hasRelic, inLairDanger } from './neutral';
 import { eventMult } from '../events';
+import { modOf } from '../modifiers';
 
 export const RESOURCE_TILE: Record<ResourceKind, TileKind> = {
   wood: 'forest', stone: 'rock', ore: 'ore', food: 'berries',
@@ -68,7 +69,8 @@ export function gatherTick(world: World, u: Unit, kind: ResourceKind, tx: number
   const rate =
     gatherRateOf(u.attrs, kind === 'food') * (kind === 'food' ? RACES[u.race].forageMult : 1) * world.rules.gatherMult * sickMult(u) *
     (hasRelic(world, u.factionId, 'harvest') ? 1.4 : 1) *
-    eventMult(world, kind === 'food' ? 'forage' : 'gather');
+    eventMult(world, kind === 'food' ? 'forage' : 'gather') *
+    modOf(world, u.factionId, 'gather') * (kind === 'food' ? modOf(world, u.factionId, 'food') : 1);
   const amt = Math.min(rate, tile.amount, cap - u.carrying.amount);
   u.carrying.amount += amt;
   tile.amount -= amt;

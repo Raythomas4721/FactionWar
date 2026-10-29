@@ -7,6 +7,7 @@ import { areHostile, hasCompleted, logEvent, popCapOf, popOf, spawnUnit } from '
 import { declareWar, sendEnvoy } from './systems/diplomacy';
 import { getTreaty } from './systems/treaties';
 import { placeBuilding } from './systems/building';
+import { attackForbidden, modOf } from './modifiers';
 
 const MAX_CRAFT_QUEUE = 4;
 
@@ -17,9 +18,10 @@ export function issueCommand(world: World, factionId: number, cmd: Command): voi
 
 export function unitCost(world: World, f: Faction, role: Role, troop: Troop = 'soldier'): number {
   const base = RACES[f.race].unitCost;
-  if (role !== 'warrior') return base;
-  const discounted = hasCompleted(world, f.id, 'barracks') ? Math.round(base * BARRACKS_DISCOUNT) : base;
-  return discounted + TROOP_DEFS[troop].extraFood;
+  const mult = modOf(world, f.id, 'trainCost');
+  if (role !== 'warrior') return Math.round(base * mult);
+  const discounted = hasCompleted(world, f.id, 'barracks') ? base * BARRACKS_DISCOUNT : base;
+  return Math.round((discounted + TROOP_DEFS[troop].extraFood) * mult);
 }
 
 export function processCommands(world: World, f: Faction): void {
@@ -57,6 +59,10 @@ export function processCommands(world: World, f: Faction): void {
         declareWar(world, f, cmd.target);
         break;
       case 'setStance': {
+        if (cmd.stance === 'attack' && attackForbidden(world, f)) {
+          if (f.playerControlled) logEvent(world, 'policy', `${f.name} 正在堅壁清野，暫時不能進攻`, f.id);
+          break;
+        }
         // 對和平或同盟的對象下令進攻，等於撕毀條約
         if (cmd.stance === 'attack' && cmd.target !== null && !areHostile(world, f.id, cmd.target)) {
           declareWar(world, f, cmd.target);

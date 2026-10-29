@@ -5,6 +5,42 @@ import type { Lair, MonsterKind, RelicId } from './lairs';
 import type { HeroPath, TalentId } from './heroes';
 import type { ActiveEvent } from './events';
 import type { PowerId } from './powers';
+import type { PolicyId } from './policies';
+
+export type Difficulty = 'easy' | 'normal' | 'hard';
+
+/** 王國模式（1v1 單機）：玩家選一個王國，對抗一個 AI 陣營 */
+export interface KingdomState {
+  player: number;
+  enemy: number;
+  difficulty: Difficulty;
+  /** 等待玩家選擇的國策卡（null = 目前沒有） */
+  offer: PolicyId[] | null;
+  /** 下一次發國策卡的 tick（玩家選完才開始計時） */
+  nextPolicyAt: number;
+  /** AI 下一次推行國策的 tick */
+  aiNextPolicyAt: number;
+  /** 雙方推行過的國策（戰報用） */
+  history: { factionId: number; policy: PolicyId; tick: number }[];
+}
+
+/** 會影響陣營數值的倍率（國策、難度） */
+export type ModKey =
+  | 'gather' | 'food' | 'research' | 'damage' | 'defense' | 'speed' | 'tower' | 'quality' | 'trainCost' | 'upkeep' | 'xp';
+
+export interface Modifier {
+  /** 來源（國策 id 或 difficulty） */
+  source: string;
+  name: string;
+  icon: string;
+  mods: Partial<Record<ModKey, number>>;
+  /** 到期的 tick（Infinity = 永久） */
+  until: number;
+  /** 期間不能下令進攻 */
+  noAttack?: boolean;
+  /** 只是代價／附帶效果，不在介面上單獨列出 */
+  hidden?: boolean;
+}
 
 /** 進行中的試煉 */
 export interface TrialState {
@@ -280,11 +316,17 @@ export interface Faction {
   nemeses: Nemesis[];
   /** 賢者秘藥帶來的屬性加成（現有與之後出生的族人都有） */
   attrBonus: Attributes;
+  /** 國策與難度帶來的倍率 */
+  modifiers: Modifier[];
+  /** AI 進攻的積極程度（1 = 標準；越高越早出兵） */
+  aggression: number;
+  /** AI 會針對對手的兵種調整訓練（困難難度） */
+  counterPlay: boolean;
 }
 
 export type EventKind =
   | 'combat' | 'craft' | 'invention' | 'build' | 'tech' | 'faction' | 'god' | 'health' | 'diplomacy' | 'lair' | 'hero'
-  | 'world' | 'info';
+  | 'world' | 'policy' | 'info';
 
 export interface GameEvent {
   tick: number;
@@ -347,6 +389,8 @@ export interface World {
   nextEventAt: number;
   /** 造物主的試煉（一般模式為 undefined） */
   trial?: TrialState;
+  /** 王國模式（一般模式為 undefined） */
+  kingdom?: KingdomState;
   /** 畫面震動強度（純視覺，附身英雄受重擊時） */
   shake: number;
 }

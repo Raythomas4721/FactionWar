@@ -81,6 +81,7 @@ export function nearestFaction(world: World, x: number, y: number): Faction | nu
 export function castPower(world: World, id: PowerId, x: number, y: number): CastResult {
   const def = POWER_DEFS[id];
   if (world.over) return { ok: false, message: '戰局已結束' };
+  if (world.kingdom) return { ok: false, message: '王國模式中你是國王，不能使用神力' };
   if (world.trial && !world.trial.powers.includes(id)) return { ok: false, message: `這個試煉不能使用「${def.name}」` };
   if (world.mana < def.cost) return { ok: false, message: `神力不足（需要 ${def.cost}）` };
 

@@ -7,6 +7,7 @@ import { eventMult } from '../events';
 import type { Faction, Unit, World } from '../types';
 import { centerOf, factionBuildings, logEvent, unitLabel } from '../util';
 import { handleDeath } from './combat';
+import { modOf } from '../modifiers';
 
 /** 每人每 tick 吃掉的糧食（再乘種族食量與世界法則） */
 export const UPKEEP_PER_TICK = 0.003;
@@ -35,7 +36,7 @@ export function eatersOf(units: Unit[]): number {
 }
 
 export function upkeepOf(world: World, f: Faction, pop: number): number {
-  return pop * UPKEEP_PER_TICK * RACES[f.race].foodUpkeep * world.rules.upkeepMult * eventMult(world, 'upkeep');
+  return pop * UPKEEP_PER_TICK * RACES[f.race].foodUpkeep * world.rules.upkeepMult * eventMult(world, 'upkeep') * modOf(world, f.id, 'upkeep');
 }
 
 /** 飢餓、疾病等非戰鬥傷害 */

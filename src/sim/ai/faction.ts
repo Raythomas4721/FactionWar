@@ -16,6 +16,7 @@ import { peaceTicksOf } from '../rules';
 import { hasCommonEnemy, raceIsDiplomatic } from '../systems/diplomacy';
 import { getTreaty } from '../systems/treaties';
 import { activeLairs, guardiansOf } from '../systems/neutral';
+import { attackForbidden } from '../modifiers';
 
 const DIPLOMACY_THINK_TICKS = 600;
 
@@ -63,6 +64,7 @@ function decideStance(world: World, f: Faction, warriors: Unit[], cmds: Command[
     return;
   }
 
+  if (attackForbidden(world, f)) return;
   // 中立巢穴：兵力是守衛的兩倍以上就去討伐（休戰期也可以）
   const lairTarget = pickLairTarget(world, warriors, hc);
   if (world.tick < peaceTicksOf(world.rules)) {
@@ -70,12 +72,14 @@ function decideStance(world: World, f: Faction, warriors: Unit[], cmds: Command[
     return;
   }
   const armed = warriors.filter((w) => w.weapon).length;
+  // 積極程度（難度）越高，越早出兵
+  const a = f.aggression;
   const ready =
-    (warriors.length >= 6 && armed >= warriors.length * 0.7) ||
-    warriors.length >= 14 ||
-    (world.tick > 9000 && warriors.length >= 5) ||
+    (warriors.length >= Math.round(6 / a) && armed >= warriors.length * 0.7) ||
+    warriors.length >= Math.round(14 / a) ||
+    (world.tick > 9000 / a && warriors.length >= 5) ||
     // 後期決戰：不再等兵力完全集結
-    (world.tick > 12000 && warriors.length >= 3);
+    (world.tick > 12000 / a && warriors.length >= 3);
   if (!ready || threatened) return;
 
   // 挑「兵少又近」的敵人；盟友正在打的對象優先（聯合作戰）
@@ -124,7 +128,8 @@ function pickLairTarget(world: World, warriors: Unit[], hc: { x: number; y: numb
  * 打不過就求和、有共同敵人就結盟、自己夠強又看對方不順眼就撕毀條約。
  */
 function decideDiplomacy(world: World, f: Faction, units: Unit[], cmds: Command[]): void {
-  if (f.playerControlled || RACES[f.race].noDiplomacy || world.tick < f.nextDiplomacyAt) return;
+  // 王國模式是你死我活的對決，沒有外交
+  if (f.playerControlled || world.kingdom || RACES[f.race].noDiplomacy || world.tick < f.nextDiplomacyAt) return;
   f.nextDiplomacyAt = world.tick + DIPLOMACY_THINK_TICKS;
   const strength = (id: number) => factionUnits(world, id).filter((u) => u.role === 'warrior').length;
   const mine = strength(f.id);
@@ -191,6 +196,7 @@ function pickTroop(world: World, f: Faction, units: Unit[]): Troop {
   const mix = { ...TROOP_MIX[f.race] };
   const enemyCavalry = world.units.some((u) => u.troop === 'cavalry' && areHostile(world, f.id, u.factionId));
   if (enemyCavalry) mix.spearman = (mix.spearman ?? 0) + 0.1;
+  if (f.counterPlay) counterMix(world, f, mix);
   let best: Troop = 'soldier';
   let bestGap = 0;
   for (const [troop, share] of Object.entries(mix) as [Troop, number][]) {
@@ -203,6 +209,21 @@ function pickTroop(world: World, f: Faction, units: Unit[]): Troop {
     }
   }
   return best;
+}
+
+/**
+ * 困難 AI：看對手的軍隊組成調整兵種——騎兵多就多練長矛兵，
+ * 弓手多就派騎兵衝散（有騎兵的種族）或多練步兵頂上去。
+ */
+function counterMix(world: World, f: Faction, mix: Partial<Record<Troop, number>>): void {
+  const foes = world.units.filter(
+    (u) => u.hp > 0 && u.role === 'warrior' && !world.factions[u.factionId].neutral && areHostile(world, f.id, u.factionId),
+  );
+  if (foes.length < 4) return;
+  const share = (pred: (u: Unit) => boolean) => foes.filter(pred).length / foes.length;
+  mix.spearman = (mix.spearman ?? 0) + share((u) => u.troop === 'cavalry') * 0.8;
+  const ranged = share((u) => !!u.weapon && itemDef(u.weapon).ranged);
+  if (ranged > 0.3 && isTroopAvailableToRace('cavalry', f.race)) mix.cavalry = (mix.cavalry ?? 0) + 0.2;
 }
 
 function decideBuilding(world: World, f: Faction, units: Unit[], cmds: Command[]): void {
