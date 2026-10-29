@@ -43,16 +43,17 @@ function OutpostChip({ world, o, me }: { world: World; o: Outpost; me: Faction }
       style={{ borderColor: owner?.color }}
       title={`${def.name}（${owner ? owner.name : '中立'}）：${def.desc}`}
     >
-      <span style={{ color: owner?.color }}>
+      <span className="op-name" style={{ color: owner?.color }}>
         {def.icon}
-        {def.name}
+        <span className="long">{def.name}</span>
       </span>
-      {status && <small>{status}</small>}
+      {status && <small className="op-status">{status}</small>}
       <button aria-label="少派一人" disabled={want <= 0} onClick={() => adjustGarrison(world, me, o.id, -1)}>
         −
       </button>
       <span className="garrison-count" title="駐守中／想要的人數">
-        🛡{have}/{want}
+        <span className="long">🛡</span>
+        {have}/{want}
       </span>
       <button aria-label="多派一人" disabled={want >= MAX_GARRISON} onClick={() => adjustGarrison(world, me, o.id, 1)}>
         ＋
@@ -100,7 +101,12 @@ export function KingdomBar({ world, message, onOpenOffer, scoutMode, onScoutMode
             📜 選擇國策
           </button>
         ) : (
-          me.alive && <span className="muted kb-next">📜 下一張國策 {formatTime(Math.max(0, k.nextPolicyAt - world.tick))}</span>
+          me.alive && (
+            <span className="muted kb-next" title="下一張國策">
+              📜 <span className="long">下一張國策 </span>
+              {formatTime(Math.max(0, k.nextPolicyAt - world.tick))}
+            </span>
+          )
         )}
       </div>
       {me.alive && !world.over && (
@@ -115,15 +121,16 @@ export function KingdomBar({ world, message, onOpenOffer, scoutMode, onScoutMode
               title="派兵討伐中立巢穴，奪取寶藏"
               onClick={() => stance('attack', beast.id)}
             >
-              🏆 討伐巢穴 <small>({lairsLeft})</small>
+              🏆 <span className="long">討伐</span>巢穴 <small>({lairsLeft})</small>
             </button>
           )}
           <button
             className={isOn('attack', foe.id) ? 'active attack' : ''}
             disabled={locked || !foe.alive}
+            title={`進攻${foe.name}`}
             onClick={() => stance('attack', foe.id)}
           >
-            ⚔ 進攻{foe.name}
+            ⚔ 進攻<span className="long">{foe.name}</span>
           </button>
           <button
             disabled={popFull || me.resources.food < scoutCost}
@@ -139,9 +146,13 @@ export function KingdomBar({ world, message, onOpenOffer, scoutMode, onScoutMode
               title="點地圖指定斥候去偵察的地點"
               onClick={() => onScoutMode(!scoutMode)}
             >
-              📍 {scoutMode ? '點地圖…' : '偵察'}
+              📍 {scoutMode ? '點地圖' : '偵察'}
             </button>
           )}
+        </div>
+      )}
+      {me.alive && !world.over && (locked || activeModifiers(world, me).length > 0 || activeModifiers(world, foe).length > 0) && (
+        <div className="kb-row kb-mods">
           {locked && <span className="muted">🏯 堅壁清野中，暫時不能進攻</span>}
           <ModChips world={world} f={me} />
           <ModChips world={world} f={foe} prefix="敵 " />
