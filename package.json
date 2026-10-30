@@ -10,7 +10,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "balance": "tsx tools/balance.ts",
-    "duel": "tsx tools/duel.ts"
+    "duel": "tsx tools/duel.ts",
+    "deploy:cf": "npm run build && npx --yes wrangler@4 pages deploy dist --project-name factionwar --branch main"
   },
   "dependencies": {
     "react": "^18.3.1",
