@@ -80,7 +80,7 @@ export const KINGDOM_RULES: Partial<WorldRules> = {
   raceSelection: [],
   // 1v1 的種族平衡（npm run duel 雙方 AI 各打數百場調出來的；四族混戰不受影響）：
   // 蟲海在只有一個對手時太強，人類的外交長處在 1v1 用不上
-  racePower: { orc: 0.96, elf: 0.97, dwarf: 1.04, human: 1.1, undead: 1, insect: 0.88, beast: 1 },
+  racePower: { orc: 0.97, elf: 0.94, dwarf: 1.04, human: 1.085, undead: 1.02, insect: 0.9, beast: 1 },
 };
 
 /** 1v1 額外的種族修正（目前只靠上面的屬性倍率就夠了，保留給之後微調） */
