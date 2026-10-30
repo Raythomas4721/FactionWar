@@ -27,6 +27,8 @@ export interface WorldRules {
   neutralLairs: boolean;
   /** 每隔幾分鐘發生隨機世界事件（豐收、寒冬、流星雨…） */
   randomEvents: boolean;
+  /** 漿果叢與魚群採完會慢慢長回來（AI 缺糧時也會多開農田） */
+  regrowth: boolean;
   /** 地圖資源蘊藏量倍率（新局生效） */
   resourceRichness: number;
   /** 開局科技等級（新局生效） */
@@ -52,6 +54,7 @@ export const DEFAULT_RULES: WorldRules = {
   allianceVictory: true,
   neutralLairs: true,
   randomEvents: true,
+  regrowth: false,
   resourceRichness: 1,
   startTech: 0,
   racePower: { orc: 1, elf: 1, dwarf: 1, human: 1, undead: 1, insect: 1, beast: 1 },
@@ -61,7 +64,7 @@ export const DEFAULT_RULES: WorldRules = {
 
 export type NumericRuleKey = Exclude<
   keyof WorldRules,
-  'racePower' | 'raceSelection' | 'infiniteMana' | 'allianceVictory' | 'neutralLairs' | 'randomEvents'
+  'racePower' | 'raceSelection' | 'infiniteMana' | 'allianceVictory' | 'neutralLairs' | 'randomEvents' | 'regrowth'
 >;
 
 export interface RuleDef {

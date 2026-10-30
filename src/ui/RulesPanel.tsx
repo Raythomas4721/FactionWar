@@ -130,6 +130,14 @@ export function RulesPanel({ rules, active, onChange, onNewGame, onClose }: Prop
           />
           隨機事件：豐收、寒冬、瘟疫季節、流星雨、獸潮、野火、神啟
         </label>
+        <label className="rule-check">
+          <input
+            type="checkbox"
+            checked={rules.regrowth}
+            onChange={(e) => onChange({ ...rules, regrowth: e.target.checked })}
+          />
+          資源再生：漿果叢與魚群採完會慢慢長回來，缺糧時多開農田（王國模式預設開啟）
+        </label>
 
         <div className="modal-actions">
           <button onClick={() => onChange(DEFAULT_RULES)}>恢復預設</button>

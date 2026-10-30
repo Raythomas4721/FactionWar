@@ -74,6 +74,8 @@ export const KINGDOM_RULES: Partial<WorldRules> = {
   allianceVictory: false,
   neutralLairs: true,
   randomEvents: true,
+  // 1v1 打得久，漿果與魚群要能長回來，後期才有糧食補兵
+  regrowth: true,
   infiniteMana: false,
   raceSelection: [],
   // 1v1 的種族平衡（npm run duel 雙方 AI 各打數百場調出來的；四族混戰不受影響）：

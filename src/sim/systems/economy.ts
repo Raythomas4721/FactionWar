@@ -48,7 +48,7 @@ function shoreOf(world: World, u: Unit, tx: number, ty: number): Point | null {
 
 /** 漿果與魚群慢慢長回來 */
 export function updateRegrowth(world: World): void {
-  if (world.tick % 10) return;
+  if (!world.rules.regrowth || world.tick % 10) return;
   const rich = world.rules.resourceRichness;
   let changed = false;
   for (const i of tilesOfKind(world, 'berries')) {
@@ -96,14 +96,15 @@ export function findNearestResource(world: World, u: Unit, kind: ResourceKind): 
   let best: Point | null = null;
   let bestD2 = Infinity;
   const mirrored = !!world.factions[u.factionId]?.mirrored;
+  // 會再生的話，只剩一點點的漿果與魚就先別去了，等長回來再說
+  const minAmount = kind === 'food' && world.rules.regrowth ? REGROW_MIN : 0.01;
   for (const tileKind of kinds) {
     const list = tilesOfKind(world, tileKind);
     // 右邊的陣營倒著找，距離相同時才會挑到和左邊對稱的那一格
     for (let j = 0; j < list.length; j++) {
       const i = list[mirrored ? list.length - 1 - j : j];
       const t = world.tiles[i];
-      // 漿果與魚只剩一點點就先別去了，等長回來再說
-      if (t.kind !== tileKind || t.amount < (kind === 'food' ? REGROW_MIN : 0.01)) continue;
+      if (t.kind !== tileKind || t.amount < minAmount) continue;
       const cx = (i % world.width) + 0.5;
       const cy = Math.floor(i / world.width) + 0.5;
       const d2 = (u.x - cx) ** 2 + (u.y - cy) ** 2;
@@ -140,8 +141,8 @@ export function gatherTick(world: World, u: Unit, kind: ResourceKind, tx: number
   const amt = Math.min(rate, tile.amount, cap - u.carrying.amount);
   u.carrying.amount += amt;
   tile.amount -= amt;
-  if (tile.kind === 'berries') {
-    // 漿果叢不會消失，只是一時沒有果子
+  if (tile.kind === 'berries' && world.rules.regrowth) {
+    // 會再生的漿果叢不會消失，只是一時沒有果子
     if (tile.amount < BERRY_VISIBLE && tile.amount + amt >= BERRY_VISIBLE) world.terrainVersion++;
     if (tile.amount <= 0.001) tile.amount = 0;
   } else if (fishing) {
