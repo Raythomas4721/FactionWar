@@ -1526,3 +1526,33 @@ canvas.casting {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* 海軍列 */
+.kb-navy .kb-dock {
+  font-size: 12px;
+}
+.kb-navy button small {
+  color: #9fd3ff;
+}
+.kb-navy button.active {
+  background: #1f3446;
+  border-color: #6ab8ff;
+}
+.app.mobile .kb-navy {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr 1fr 1fr;
+  gap: 4px;
+  align-items: center;
+}
+.app.mobile .kb-navy .cmd-label {
+  display: none;
+}
+.app.mobile .kb-navy button,
+.app.mobile .kb-navy .kb-dock {
+  min-width: 0;
+  padding: 6px 2px;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

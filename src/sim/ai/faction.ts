@@ -1,7 +1,7 @@
 import { buildingCost } from '../buildings';
 import { HQ_THREAT_RADIUS, TICKS_PER_SECOND } from '../constants';
 import { eatersOf, upkeepOf } from '../systems/health';
-import { TROOP_MIX, canTrainTroop, isTroopAvailableToRace } from '../troops';
+import { TROOP_DEFS, TROOP_MIX, canTrainTroop, isTroopAvailableToRace } from '../troops';
 import { itemDef, itemPower, resolveDef } from '../items';
 import { dist } from '../math';
 import { RACES } from '../races';
@@ -12,7 +12,8 @@ import {
 import { isBuildingUnlocked } from '../systems/building';
 import { pickCraftDef } from '../systems/crafting';
 import { unitCost } from '../commands';
-import { peaceTicksOf } from '../rules';
+import { inPeace } from '../rules';
+import { docksOf, findDockSpot, hasSea } from '../sea';
 import { hasCommonEnemy, raceIsDiplomatic } from '../systems/diplomacy';
 import { getTreaty } from '../systems/treaties';
 import { activeLairs, guardiansOf } from '../systems/neutral';
@@ -30,7 +31,8 @@ export function runFactionAi(world: World, f: Faction): void {
   const hq = hqOf(world, f);
   if (!hq) return;
   const hasForge = hasCompleted(world, f.id, 'forge');
-  const warriors = units.filter((u) => u.role === 'warrior');
+  // 船另外管（decideNaval），不算在陸軍裡
+  const warriors = units.filter((u) => u.role === 'warrior' && !TROOP_DEFS[u.troop].naval);
   const cmds: Command[] = [];
 
   decideDiplomacy(world, f, units, cmds);
@@ -38,6 +40,7 @@ export function runFactionAi(world: World, f: Faction): void {
   decideTraining(world, f, units, hasForge, cmds);
   decideBuilding(world, f, units, cmds);
   decideCrafting(f, warriors, hasForge, cmds);
+  if (!f.playerControlled) decideNaval(world, f, units, cmds);
   setGatherWeights(f, hasForge);
   // 據點：AI 自己決定駐守人數，玩家指揮的陣營由玩家決定；兩者都由大臣補人
   if (!f.playerControlled) decideOutposts(world, f, warriors.filter((u) => u.troop !== 'scout').length);
@@ -71,7 +74,7 @@ function decideStance(world: World, f: Faction, warriors: Unit[], cmds: Command[
   if (attackForbidden(world, f)) return;
   // 中立巢穴：兵力是守衛的兩倍以上就去討伐（休戰期也可以）
   const lairTarget = pickLairTarget(world, warriors, hc);
-  if (world.tick < peaceTicksOf(world.rules)) {
+  if (inPeace(world)) {
     if (lairTarget && !threatened) cmds.push({ type: 'setStance', stance: 'attack', target: lairTarget });
     return;
   }
@@ -252,9 +255,28 @@ function decideBuilding(world: World, f: Faction, units: Unit[], cmds: Command[]
   if (n('infirmary') === 0 && pop >= 18) wishes.push('infirmary');
   if (n('stable') === 0 && isTroopAvailableToRace('cavalry', f.race)) wishes.push('stable');
   if (n('house') < 8 && pop >= cap - 4) wishes.push('house');
+  // 海邊的王國蓋碼頭（只有連到大海的岸邊才行）
+  if (n('dock') === 0 && f.tech >= 1 && hasSea(world) && findDockSpot(world, f)) wishes.push('dock');
 
   const pick = wishes.find((t) => isBuildingUnlocked(f, t) && canAfford(f.resources, buildingCost(t, f.race)));
   if (pick) cmds.push({ type: 'build', building: pick });
+}
+
+/** 有碼頭就造一艘運兵船；科技夠了再造戰船護航（敵人有船就多造） */
+function decideNaval(world: World, f: Faction, units: Unit[], cmds: Command[]): void {
+  if (!docksOf(world, f.id).length || units.length >= popCapOf(world, f.id)) return;
+  const count = (t: Troop) => units.filter((u) => u.troop === t).length;
+  const enemyShips = world.units.filter((u) => u.hp > 0 && TROOP_DEFS[u.troop].naval && areHostile(world, f.id, u.factionId)).length;
+  const want: Troop | null =
+    count('transport') < 1 ? 'transport'
+      : f.tech >= 2 && count('warship') < Math.min(3, 1 + Math.ceil(enemyShips / 2)) ? 'warship'
+        : null;
+  if (!want) return;
+  const cost = TROOP_DEFS[want].cost ?? {};
+  // 留一點木頭給房子與農田
+  if ((f.resources.wood ?? 0) >= (cost.wood ?? 0) + 40 && (f.resources.ore ?? 0) >= (cost.ore ?? 0)) {
+    cmds.push({ type: 'train', role: 'warrior', troop: want });
+  }
 }
 
 function decideCrafting(f: Faction, warriors: Unit[], hasForge: boolean, cmds: Command[]): void {

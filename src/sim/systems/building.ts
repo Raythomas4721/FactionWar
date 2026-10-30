@@ -1,14 +1,14 @@
 import {
   BUILDING_DEFS, FARM_FOOD_PER_TICK, HQ_FOOD_PER_TICK, TURRETS, buildingCost,
 } from '../buildings';
-import { BUILDING_SIZE } from '../constants';
 import { dist } from '../math';
 import { RACES } from '../races';
 import { buildRateOf } from '../stats';
 import type { Building, BuildingType, Faction, Point, Unit, World } from '../types';
 import {
-  areHostile, canAfford, centerOf, getBuilding, hqOf, isTargetable, logEvent, pay, sickMult, tileAt,
+  areHostile, canAfford, centerOf, getBuilding, hqOf, isFreeSpot, isTargetable, logEvent, pay, sickMult,
 } from '../util';
+import { findDockSpot } from '../sea';
 import { damageUnit } from './combat';
 import { buildingQualityOf } from './invention';
 import { hasRelic } from './neutral';
@@ -42,18 +42,6 @@ export function findBuildSpot(world: World, f: Faction): Point | null {
   return null;
 }
 
-function isFreeSpot(world: World, x: number, y: number): boolean {
-  for (let yy = y; yy < y + BUILDING_SIZE; yy++) {
-    for (let xx = x; xx < x + BUILDING_SIZE; xx++) {
-      if (tileAt(world, xx, yy)?.kind !== 'grass') return false;
-    }
-  }
-  return !world.buildings.some(
-    (b) => b.hp > 0 &&
-      x < b.x + BUILDING_SIZE + 1 && x + BUILDING_SIZE + 1 > b.x &&
-      y < b.y + BUILDING_SIZE + 1 && y + BUILDING_SIZE + 1 > b.y,
-  );
-}
 
 export function createBuilding(world: World, f: Faction, type: BuildingType, x: number, y: number, complete: boolean): Building {
   const def = BUILDING_DEFS[type];
@@ -81,7 +69,8 @@ export function placeBuilding(world: World, f: Faction, type: BuildingType): Bui
   if (!isBuildingUnlocked(f, type)) return null;
   const cost = buildingCost(type, f.race);
   if (!canAfford(f.resources, cost)) return null;
-  const spot = findBuildSpot(world, f);
+  // 碼頭要蓋在海邊
+  const spot = type === 'dock' ? findDockSpot(world, f) : findBuildSpot(world, f);
   if (!spot) return null;
   pay(f.resources, cost);
   const b = createBuilding(world, f, type, spot.x, spot.y, false);

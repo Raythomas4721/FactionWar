@@ -56,6 +56,7 @@ export function Inspector({ world, selection }: { world: World; selection: Selec
 }
 
 function describeAction(world: World, u: Unit): string {
+  if (u.aboard !== undefined) return '搭乘運兵船渡海中（在船上打不到，船沉了會淹死）';
   if (world.tick < u.surfaceAt) return `穿越古地道中（${Math.ceil((u.surfaceAt - world.tick) / 10)} 秒後出來，地底無法被攻擊）`;
   const a = u.action;
   switch (a.type) {
@@ -94,6 +95,12 @@ function describeAction(world: World, u: Unit): string {
       return o ? `駐守${outpostLabel(o)}` : '駐守據點';
     }
     case 'scout': return '偵察中';
+    case 'sail': {
+      const plan = world.factions[u.factionId].landing;
+      if (plan?.shipId !== u.id) return '在港口待命';
+      return plan.phase === 'sail' ? `載著部隊渡海，前往${world.factions[plan.target].name}的海岸` : plan.phase === 'board' ? '在碼頭等戰士上船' : '返航';
+    }
+    case 'board': return '前往碼頭登船，準備渡海突襲';
     case 'subvert': {
       const t = world.unitMap.get(a.targetId);
       return t ? `潛入策反 ${RACES[t.race].name} ${t.name}（成功率 ${Math.round(persuadeChance(world, u, t) * 100)}%）` : '策反';

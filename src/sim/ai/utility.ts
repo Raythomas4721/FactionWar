@@ -1,5 +1,5 @@
 import { HQ_THREAT_RADIUS, MAX_BUILDERS, MILITIA_RADIUS, SIGHT } from '../constants';
-import { resolveDef } from '../items';
+import { itemDef, resolveDef } from '../items';
 import { dist } from '../math';
 import { carryOf } from '../stats';
 import type { Faction, ResourceKind, Unit, UnitAction, World } from '../types';
@@ -14,6 +14,8 @@ import { findAmbushSpot } from '../systems/troopActions';
 import { followerThink } from '../systems/heroSystem';
 import { pickScoutTarget } from '../fog';
 import { RETREAT_MULT, musterTarget, pickFocusTarget } from '../tactics';
+import { canEngage, shipDecision } from '../naval';
+import { isNaval } from '../sea';
 
 /**
  * 個體 Utility AI：列出所有可做的事、各自打分，挑最高分的去做。
@@ -28,6 +30,11 @@ interface Option {
 const RESOURCE_KINDS: ResourceKind[] = ['food', 'wood', 'stone', 'ore'];
 
 export function think(world: World, u: Unit): void {
+  if (u.aboard !== undefined) return;
+  if (isNaval(u)) {
+    setAction(world, u, shipDecision(world, u));
+    return;
+  }
   // 「跟隨我」小隊：血量太低才會脫隊撤退
   if (u.followHero !== undefined && u.hp > u.maxHp * 0.25 && followerThink(world, u)) return;
   if (u.troop === 'scout') {
@@ -43,12 +50,22 @@ export function think(world: World, u: Unit): void {
   const hpRatio = u.hp / u.maxHp;
   // 戰士依集火設定挑目標，其他人只看最近的威脅
   const focus = u.role === 'warrior' ? f.tactics.focus : 'nearest';
-  const enemy = focus === 'nearest' ? nearestEnemyUnit(world, u, SIGHT) : pickFocusTarget(world, u, focus);
+  let enemy = focus === 'nearest' ? nearestEnemyUnit(world, u, SIGHT) : pickFocusTarget(world, u, focus);
+  // 近戰的打不到海上的船：改找岸上的敵人
+  const ranged = !!u.weapon && itemDef(u.weapon).ranged;
+  if (enemy && !canEngage(u, enemy, ranged)) {
+    enemy = pickFocusTarget(world, u, focus, SIGHT, (e) => canEngage(u, e, ranged));
+  }
   const enemyDist = enemy ? dist(u.x, u.y, enemy.x, enemy.y) : Infinity;
   const resting = u.action.type === 'retreat';
 
   // 地底的工兵不受地面戰況影響，一路挖到底
   if (u.underground && (u.action.type === 'tunnel' || u.action.type === 'garrison')) add(98, u.action);
+  // 被點名參加登陸作戰：到碼頭上船
+  const plan = f.landing;
+  if (plan?.phase === 'board' && plan.passengers.includes(u.id) && hpRatio > 0.3) {
+    add(94, { type: 'board', shipId: plan.shipId });
+  }
 
   if (u.role === 'warrior') {
     let s = (1 - hpRatio) * 90 + (u.morale < 25 ? 70 : 0);
@@ -104,6 +121,8 @@ function sameAction(a: UnitAction, b: UnitAction): boolean {
     case 'ambush': return b.type === 'ambush' && a.x === b.x && a.y === b.y;
     case 'garrison': return b.type === 'garrison' && a.outpostId === b.outpostId;
     case 'scout': return b.type === 'scout' && a.x === b.x && a.y === b.y;
+    case 'sail': return b.type === 'sail' && a.x === b.x && a.y === b.y;
+    case 'board': return b.type === 'board' && a.shipId === b.shipId;
     case 'guard': return b.type === 'guard' && Math.abs(a.x - b.x) < 3 && Math.abs(a.y - b.y) < 3;
     case 'craft': return true;
     default: return true;
@@ -127,7 +146,8 @@ function warriorOptions(
   const hc = centerOf(hq);
 
   // 保衛營帳最優先
-  const threats = enemiesNear(world, f.id, hc.x, hc.y, HQ_THREAT_RADIUS);
+  const ranged = !!u.weapon && itemDef(u.weapon).ranged;
+  const threats = enemiesNear(world, f.id, hc.x, hc.y, HQ_THREAT_RADIUS).filter((t) => canEngage(u, t, ranged));
   if (threats.length) {
     let nearest = threats[0];
     for (const t of threats) if (dist(u.x, u.y, t.x, t.y) < dist(u.x, u.y, nearest.x, nearest.y)) nearest = t;
@@ -136,7 +156,7 @@ function warriorOptions(
 
   if (u.action.type === 'attackUnit') {
     const cur = world.unitMap.get(u.action.targetId);
-    if (cur && cur.hp > 0) add(76, u.action);
+    if (cur && cur.hp > 0 && canEngage(u, cur, ranged)) add(76, u.action);
   }
   // 駐守的士兵不去招惹巢穴邊的怪物（除非怪物貼上來，或正在討伐巢穴）
   const huntingLairs = f.stance === 'attack' && f.targetFaction !== null && world.factions[f.targetFaction].neutral;

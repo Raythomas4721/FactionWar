@@ -2,9 +2,12 @@ import { dist } from '../math';
 import { speedOf } from '../stats';
 import { TROOP_DEFS } from '../troops';
 import type { Point, Unit, World } from '../types';
-import { isPassable } from '../util';
+import { isPassable as isLandPassable } from '../util';
 import { modOf } from '../modifiers';
+import { isNaval, isSea, nearestSeaTile } from '../sea';
 
+/** 船隻的速度（格／tick） */
+const SHIP_SPEED = 0.13;
 /** 走古地道的代價：相當於在地面走這麼多格 */
 export const TUNNEL_COST = 14;
 
@@ -47,12 +50,14 @@ function ensureBuffers(n: number) {
 
 /**
  * 8 方向 A*，避開水域，不允許斜穿水域角落；古地道的兩端互通。
+ * naval = 船隻：反過來只能走海面，也不走地道。
  * 回傳不含起點的格子路徑（走地道時，入口後面緊接著出口）；找不到則回傳 null。
  */
 export function findPath(
-  world: World, sx: number, sy: number, gx: number, gy: number, maxExpand = 5000, mirrored = false,
+  world: World, sx: number, sy: number, gx: number, gy: number, maxExpand = 5000, mirrored = false, naval = false,
 ): Point[] | null {
   const w = world.width;
+  const isPassable = naval ? isSea : isLandPassable;
   if (!isPassable(world, gx, gy)) return null;
   if (sx === gx && sy === gy) return [];
   ensureBuffers(w * world.height);
@@ -100,10 +105,10 @@ export function findPath(
     return dx + dy + (Math.SQRT2 - 2) * Math.min(dx, dy);
   };
   // 有地道時，估計值也要考慮「先走到入口、從出口出來」，才不會漏掉捷徑
-  const portals = world.tunnels.length ? portalsOf(world) : null;
+  const portals = world.tunnels.length && !naval ? portalsOf(world) : null;
   const h = (x: number, y: number) => {
     let best = octile(x, y, gx, gy);
-    for (const t of world.tunnels) {
+    for (const t of portals ? world.tunnels : []) {
       best = Math.min(
         best,
         octile(x, y, t.a.x, t.a.y) + TUNNEL_COST + octile(t.b.x, t.b.y, gx, gy),
@@ -170,20 +175,27 @@ export function moveTo(world: World, u: Unit, cx: number, cy: number, stopDist: 
     u.path.length = 0;
     return true;
   }
+  const naval = isNaval(u);
+  const isPassable = naval ? isSea : isLandPassable;
   const gx = Math.floor(cx);
   const gy = Math.floor(cy);
   const goalMoved = !u.pathGoal || Math.abs(u.pathGoal.x - gx) + Math.abs(u.pathGoal.y - gy) > 1;
   if ((u.path.length === 0 || goalMoved) && world.tick >= u.repathAt) {
-    const p = findPath(world, Math.floor(u.x), Math.floor(u.y), gx, gy, 5000, !!world.factions[u.factionId]?.mirrored);
+    // 船要去岸上的目標：開到離它最近的海面
+    const goal = naval && !isSea(world, gx, gy) ? nearestSeaTile(world, cx, cy, 8) : { x: gx, y: gy };
+    const p = goal
+      ? findPath(world, Math.floor(u.x), Math.floor(u.y), goal.x, goal.y, world.width * world.height, !!world.factions[u.factionId]?.mirrored, naval)
+      : null;
     u.path = p ?? [];
     u.pathGoal = { x: gx, y: gy };
     u.repathAt = world.tick + (p ? 4 : 20);
   }
 
-  let speed =
-    speedOf(u.attrs) * (u.sick ? 0.75 : 1) * TROOP_DEFS[u.troop].speedMult *
-    (world.factions[u.factionId]?.relics.includes('swift') ? 1.2 : 1) *
-    (u.hero?.talents.includes('swiftness') ? 1.2 : 1) * modOf(world, u.factionId, 'speed');
+  let speed = naval
+    ? SHIP_SPEED * modOf(world, u.factionId, 'speed')
+    : speedOf(u.attrs) * (u.sick ? 0.75 : 1) * TROOP_DEFS[u.troop].speedMult *
+      (world.factions[u.factionId]?.relics.includes('swift') ? 1.2 : 1) *
+      (u.hero?.talents.includes('swiftness') ? 1.2 : 1) * modOf(world, u.factionId, 'speed');
   const fullSpeed = speed;
   const startX = u.x;
   const startY = u.y;
@@ -204,6 +216,8 @@ export function moveTo(world: World, u: Unit, cx: number, cy: number, stopDist: 
     const tx = node ? node.x + 0.5 : cx;
     const ty = node ? node.y + 0.5 : cy;
     const d = dist(u.x, u.y, tx, ty);
+    // 目標在走不到的地方（例如船在海上）：停在岸邊
+    if (!node && !isPassable(world, Math.floor(tx), Math.floor(ty)) && d <= speed) break;
     if (d <= speed) {
       u.x = tx;
       u.y = ty;

@@ -114,6 +114,9 @@ export function createKingdomWorld(setup: KingdomSetup): World {
   world.kingdom = {
     player: player.id,
     enemy: enemy.id,
+    rivals: [enemy.id],
+    chapter: 1,
+    peaceUntil: 0,
     difficulty: setup.difficulty,
     offer: null,
     nextPolicyAt: FIRST_POLICY_AT,

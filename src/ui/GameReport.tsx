@@ -1,4 +1,5 @@
 import { DIFFICULTIES, kingdomOutcome } from '../sim/kingdom';
+import { canExpand } from '../sim/expansion';
 import { POLICIES } from '../sim/policies';
 import { analyzeGame } from '../sim/report';
 import { trialById } from '../sim/trials';
@@ -11,10 +12,12 @@ interface Props {
   onOpenTrials: () => void;
   onKingdomAgain: () => void;
   onOpenKingdom: () => void;
+  /** 王國模式第一章打贏後：擴張版圖，進入三國鼎立 */
+  onExpand: () => void;
 }
 
 /** 戰局結束時的戰報：試煉結果、每個陣營為什麼輸、下次可以怎麼做 */
-export function GameReport({ world, onAgain, onRetryTrial, onOpenTrials, onKingdomAgain, onOpenKingdom }: Props) {
+export function GameReport({ world, onAgain, onRetryTrial, onOpenTrials, onKingdomAgain, onOpenKingdom, onExpand }: Props) {
   const kingdom = world.kingdom;
   const outcome = kingdomOutcome(world);
   const trial = world.trial;
@@ -39,12 +42,12 @@ export function GameReport({ world, onAgain, onRetryTrial, onOpenTrials, onKingd
         {kingdom && (
           <div className={`trial-result ${outcome}`}>
             <div className="trial-result-title">
-              {outcome === 'won' ? '👑 勝利！' : '💀 戰敗'}（{DIFFICULTIES[kingdom.difficulty].name}）
+              {outcome === 'won' ? (kingdom.chapter === 2 ? '👑 統一天下！' : '👑 勝利！') : '💀 戰敗'}（{DIFFICULTIES[kingdom.difficulty].name}）
             </div>
             <div>{world.endReason}</div>
             {kingdom.history.length > 0 && (
               <div className="policy-history">
-                {[kingdom.player, kingdom.enemy].map((id) => (
+                {[kingdom.player, ...new Set([kingdom.enemy, ...kingdom.rivals])].map((id) => (
                   <div key={id}>
                     <b style={{ color: world.factions[id].color }}>{world.factions[id].name}</b> 的國策：
                     {kingdom.history
@@ -82,7 +85,12 @@ export function GameReport({ world, onAgain, onRetryTrial, onOpenTrials, onKingd
         <div className="report-actions">
           {kingdom ? (
             <>
-              <button className="primary" onClick={onKingdomAgain}>
+              {canExpand(world) && (
+                <button className="primary pulse" onClick={onExpand} title="地圖往東、往南擴張，出現兩個新王國與一片內海；你的軍隊、英雄、科技全部保留">
+                  🌊 擴張版圖：三國鼎立
+                </button>
+              )}
+              <button className={canExpand(world) ? '' : 'primary'} onClick={onKingdomAgain}>
                 {outcome === 'won' ? '再戰一場' : '再挑戰一次'}
               </button>
               <button onClick={onOpenKingdom}>換王國／難度</button>

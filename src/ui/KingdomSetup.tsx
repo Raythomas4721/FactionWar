@@ -129,7 +129,7 @@ export function KingdomSetupPanel({ onStart, onClose }: Props) {
 
         <div className="muted kingdom-howto">
           你是國王：決定進攻、防守或討伐巢穴，派兵駐守據點（礦場、瞭望塔、戰神祠），每 4 分鐘選一張國策卡，關鍵時刻附身英雄親自上陣。
-          採集、補兵與打造由大臣（AI）打理。攻陷對方營帳就勝利。
+          採集、補兵與打造由大臣（AI）打理。攻陷對方營帳就勝利；打贏後還能擴張版圖，進入隔海相望的三國鼎立。
         </div>
         <div className="modal-actions">
           <button className="primary" onClick={start}>

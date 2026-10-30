@@ -1,3 +1,4 @@
+import { TROOP_DEFS } from '../troops';
 import { dist } from '../math';
 import {
   CAPTURE_RADIUS, CAPTURE_TICKS, OUTPOST_DEFS, WATCHTOWER_COOLDOWN, WATCHTOWER_DAMAGE, WATCHTOWER_RANGE,
@@ -16,7 +17,7 @@ export function createOutposts(world: World, spots: { kind: OutpostKind; x: numb
 function canCapture(world: World, u: Unit): boolean {
   return (
     u.hp > 0 && u.role === 'warrior' && u.troop !== 'scout' && !u.monster && u.summonedBy === undefined &&
-    !u.underground && !world.factions[u.factionId].neutral
+    !u.underground && !world.factions[u.factionId].neutral && !TROOP_DEFS[u.troop].naval && u.aboard === undefined
   );
 }
 
@@ -104,7 +105,7 @@ export function garrisonSpot(o: Outpost, u: Unit): Point {
 function assignable(u: Unit): boolean {
   return (
     u.hp > 0 && u.role === 'warrior' && u.troop !== 'scout' && !u.hero && !u.monster &&
-    u.summonedBy === undefined && u.followHero === undefined
+    u.summonedBy === undefined && u.followHero === undefined && !TROOP_DEFS[u.troop].naval && u.aboard === undefined
   );
 }
 

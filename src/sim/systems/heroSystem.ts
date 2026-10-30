@@ -1,3 +1,4 @@
+import { TROOP_DEFS } from '../troops';
 import {
   AURA_RADIUS, BASE_CRIT_MULT, GENERIC_TALENTS, MAX_HEROES, MAX_LEVEL, PATHS, PATH_AFFINITY, PATH_ORDER,
   POISON_DPS, POISON_TICKS, PROMOTE_KILLS, SKILL_UNLOCK, SUMMON_INTERVAL, SUMMON_LIFETIME, SUMMON_NAMES, TALENTS,
@@ -58,7 +59,7 @@ export function choosePath(world: World, u: Unit): HeroPath {
 
 /** 戰士擊殺數夠多時晉升為英雄（每個陣營最多 MAX_HEROES 名） */
 export function maybePromote(world: World, u: Unit): void {
-  if (u.hero || u.role !== 'warrior' || u.monster || u.summonedBy !== undefined || u.hp <= 0) return;
+  if (u.hero || u.role !== 'warrior' || u.monster || u.summonedBy !== undefined || u.hp <= 0 || TROOP_DEFS[u.troop].naval) return;
   // 短命的種族（蟲族）擊殺 2 人就能晉升精英
   const needed = RACES[u.race].lifespan > 0 ? 2 : PROMOTE_KILLS;
   if (u.kills < needed || heroesOf(world, u.factionId).length >= MAX_HEROES) return;

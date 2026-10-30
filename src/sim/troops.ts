@@ -1,4 +1,4 @@
-import type { BuildingType, Faction, RaceId, Troop } from './types';
+import type { BuildingType, Faction, RaceId, Resources, Troop } from './types';
 
 /** 戰士的兵種。步兵與長矛兵人人可練，其餘是種族專屬。 */
 export interface TroopDef {
@@ -16,6 +16,10 @@ export interface TroopDef {
   speedMult: number;
   /** 偏好的武器：遠程、近戰或都可以 */
   weapon: 'ranged' | 'melee' | 'any';
+  /** 船隻：只能在海上航行，用木頭與鐵礦打造（不花糧食） */
+  naval?: boolean;
+  /** 糧食以外的訓練成本 */
+  cost?: Partial<Resources>;
   desc: string;
 }
 
@@ -48,6 +52,16 @@ export const TROOP_DEFS: Record<Troop, TroopDef> = {
   scout: {
     id: 'scout', name: '斥候', races: 'all', tech: 0, extraFood: 6, upkeep: 1, speedMult: 1.6, weapon: 'any',
     desc: '跑得快、視野廣（11 格），自動到處偵察、見到敵人就跑；也可以指定偵察地點。不參與戰鬥與佔領',
+  },
+  transport: {
+    id: 'transport', name: '運兵船', races: 'all', tech: 1, needs: 'dock', extraFood: 0, upkeep: 0.5, speedMult: 1,
+    weapon: 'any', naval: true, cost: { wood: 70 },
+    desc: '一次載 6 名戰士渡海，到敵方海岸搶灘登陸；船沉了乘客也會淹死',
+  },
+  warship: {
+    id: 'warship', name: '戰船', races: 'all', tech: 2, needs: 'dock', extraFood: 0, upkeep: 0.5, speedMult: 1,
+    weapon: 'ranged', naval: true, cost: { wood: 90, ore: 25 },
+    desc: '船上架著弩砲（射程 5.5），擊沉敵船、轟擊海邊的建築與部隊',
   },
   stinger: {
     id: 'stinger', name: '毒刺蟲', races: ['insect'], tech: 1, extraFood: 0, upkeep: 1, speedMult: 1.1, weapon: 'melee',

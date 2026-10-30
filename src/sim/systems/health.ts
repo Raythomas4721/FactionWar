@@ -52,6 +52,7 @@ export function naturalDamage(world: World, u: Unit, dmg: number, cause: 'diseas
 }
 
 export function infect(world: World, u: Unit): boolean {
+  if (TROOP_DEFS[u.troop].naval) return false;
   if (u.sick || u.hp <= 0 || world.tick < u.immuneUntil) return false;
   u.sick = true;
   world.factions[u.factionId].stats.infections++;
@@ -60,7 +61,7 @@ export function infect(world: World, u: Unit): boolean {
 
 /** 有壽命的種族（蟲族）到時間就會老死；每隻的壽命略有不同 */
 export function lifespanOf(u: Unit): number {
-  if (u.hero) return Infinity; // 英雄突破了壽命的限制
+  if (u.hero || TROOP_DEFS[u.troop].naval) return Infinity; // 英雄突破了壽命的限制；船不會老
   const base = RACES[u.race].lifespan;
   return base > 0 ? base + ((u.id * 97) % 600) : Infinity;
 }

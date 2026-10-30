@@ -162,7 +162,8 @@ export class CanvasRenderer {
     }
     ctx.globalAlpha = 1;
 
-    for (const u of world.units) if (unitVisible(world, u)) this.drawUnit(ctx, world, u, selection);
+    // 在船上的人不畫（船上會標示載了幾個人）
+    for (const u of world.units) if (u.aboard === undefined && unitVisible(world, u)) this.drawUnit(ctx, world, u, selection);
     this.drawNemeses(ctx, world);
     if (world.kingdom) this.drawLairOdds(ctx, world);
     if (world.fog) this.drawFog(ctx, world, w, h);
@@ -384,6 +385,10 @@ export class CanvasRenderer {
       }
       return;
     }
+    if (u.troop === 'transport' || u.troop === 'warship') {
+      drawShip(ctx, world, u, x, y, selection?.kind === 'unit' && selection.id === u.id);
+      return;
+    }
     if (u.underground) {
       // 地底的工兵：只看得到翻動的土堆
       ctx.globalAlpha = 0.7;
@@ -567,7 +572,15 @@ export class CanvasRenderer {
       for (let x = 0; x < world.width; x++) {
         const kind = world.tiles[y * world.width + x].kind;
         const n = smoothNoise(x / 5, y / 5) - 0.5;
-        if (kind === 'water') ctx.fillStyle = shade(TERRAIN.water, n * 0.15);
+        if (kind === 'water') {
+          // 離岸越遠的海越深
+          let deep = 0;
+          for (let r = 1; r <= 3; r++) {
+            if ([[r, 0], [-r, 0], [0, r], [0, -r]].every(([dx, dy]) => kindAt(x + dx, y + dy) === 'water')) deep = r;
+            else break;
+          }
+          ctx.fillStyle = shade(TERRAIN.water, n * 0.15 - deep * 0.07);
+        }
         else ctx.fillStyle = shade(kind === 'forest' ? '#24401f' : TERRAIN.grass, n * 0.14 + (hash(x, y) - 0.5) * 0.04);
         ctx.fillRect(x * T, y * T, T, T);
       }
@@ -766,6 +779,32 @@ function drawBuilding(ctx: CanvasRenderingContext2D, world: World, b: Building) 
     return;
   }
 
+  if (b.type === 'dock') {
+    // 碼頭：木棧板、繫船柱，陣營色的旗子
+    ctx.fillStyle = '#6b4a2b';
+    ctx.fillRect(x + 1, y + 3, s - 2, s - 6);
+    ctx.strokeStyle = '#3e2a17';
+    ctx.lineWidth = 1;
+    for (let i = 1; i < 6; i++) {
+      ctx.beginPath();
+      ctx.moveTo(x + 1 + i * ((s - 2) / 6), y + 3);
+      ctx.lineTo(x + 1 + i * ((s - 2) / 6), y + s - 3);
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#2b1d10';
+    for (const [px, py] of [[4, 4], [s - 5, 4], [4, s - 5], [s - 5, s - 5]]) {
+      ctx.beginPath();
+      ctx.arc(x + px, y + py, 1.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.strokeStyle = f.color;
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x + 1.5, y + 3.5, s - 3, s - 7);
+    ctx.globalAlpha = 1;
+    badgeText(ctx, '⚓', x + s / 2, y + s / 2, '#fff');
+    return;
+  }
+
   if (b.type === 'farm') {
     ctx.fillStyle = '#5b4026';
     ctx.fillRect(x + 1, y + 1, s - 2, s - 2);
@@ -830,6 +869,75 @@ function drawBuilding(ctx: CanvasRenderingContext2D, world: World, b: Building) 
   ctx.strokeText(BUILDING_DEFS[b.type].glyph, x + s / 2, ty);
   ctx.fillStyle = b.complete ? '#fff' : 'rgba(255,255,255,0.7)';
   ctx.fillText(BUILDING_DEFS[b.type].glyph, x + s / 2, ty);
+}
+
+/** 船：木造船身、陣營色的帆；戰船有弩砲，運兵船標出載了幾個人 */
+function drawShip(ctx: CanvasRenderingContext2D, world: World, u: Unit, x: number, y: number, selected: boolean) {
+  const f = world.factions[u.factionId];
+  const war = u.troop === 'warship';
+  const len = war ? 9 : 10;
+  // 朝著要去的方向
+  const node = u.path[0];
+  const dir = node ? Math.sign(node.x + 0.5 - u.x) || 1 : u.factionId % 2 ? -1 : 1;
+  const bob = Math.sin(world.tick / 7 + u.id) * 0.6;
+  ctx.save();
+  ctx.translate(x, y + bob);
+  ctx.scale(dir, 1);
+  // 船尾的水紋
+  ctx.strokeStyle = 'rgba(200,225,245,0.45)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-len - 2, 3);
+  ctx.lineTo(-len - 7, 1.5);
+  ctx.moveTo(-len - 2, 5);
+  ctx.lineTo(-len - 7, 6);
+  ctx.stroke();
+  // 船身
+  ctx.fillStyle = war ? '#4a3524' : '#6e4d2e';
+  ctx.strokeStyle = '#21160c';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-len, 1);
+  ctx.lineTo(len, 1);
+  ctx.lineTo(len - 4, 6);
+  ctx.lineTo(-len + 3, 6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // 桅杆與帆
+  ctx.strokeStyle = '#2a1c10';
+  ctx.beginPath();
+  ctx.moveTo(-1, 1);
+  ctx.lineTo(-1, -11);
+  ctx.stroke();
+  ctx.fillStyle = f.color;
+  ctx.beginPath();
+  ctx.moveTo(0, -10);
+  ctx.quadraticCurveTo(7, -5, 0, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+  ctx.stroke();
+  if (war) {
+    // 船頭的弩砲
+    ctx.fillStyle = '#c8c8c8';
+    ctx.fillRect(len - 6, -1.5, 5, 2);
+    ctx.fillStyle = '#222';
+    ctx.fillRect(len - 4, -2.5, 1.5, 4);
+  }
+  ctx.restore();
+  if (u.troop === 'transport') {
+    const cargo = world.units.filter((p) => p.aboard === u.id && p.hp > 0).length;
+    if (cargo) badgeText(ctx, `👥${cargo}`, x, y - 15, '#fff');
+  }
+  if (u.hp < u.maxHp) bar(ctx, x - 9, y + 9, 18, u.hp / u.maxHp, hpColor(u.hp / u.maxHp));
+  if (selected) {
+    ctx.strokeStyle = '#ffe14d';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(x, y, 14, 10, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
 }
 
 /** 深色圓角底的小字（巢穴寶藏） */

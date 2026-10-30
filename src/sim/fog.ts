@@ -11,6 +11,8 @@ import { centerOf, contenders, hqOf } from './util';
  */
 
 export const SCOUT_SIGHT = 11;
+/** 船隻的視野 */
+const SHIP_SIGHT = 9;
 const HERO_SIGHT = 8;
 const FOG_UPDATE_TICKS = 3;
 const BUILDING_SIGHT: Partial<Record<BuildingType, number>> = { hq: 8, tower: 9 };
@@ -25,6 +27,7 @@ export function createFog(world: World, factionId: number): FogState {
 
 export function sightOf(u: Unit): number {
   if (u.troop === 'scout') return SCOUT_SIGHT;
+  if (u.troop === 'transport' || u.troop === 'warship') return SHIP_SIGHT;
   return u.hero ? HERO_SIGHT : SIGHT;
 }
 
@@ -49,7 +52,7 @@ function refreshFog(world: World, fog: FogState): void {
       }
     }
   };
-  for (const u of world.units) if (u.factionId === fog.factionId && u.hp > 0) stamp(u.x, u.y, sightOf(u));
+  for (const u of world.units) if (u.factionId === fog.factionId && u.hp > 0 && u.aboard === undefined) stamp(u.x, u.y, sightOf(u));
   for (const b of world.buildings) {
     if (b.factionId !== fog.factionId) continue;
     stamp(b.x + BUILDING_SIZE / 2, b.y + BUILDING_SIZE / 2, BUILDING_SIGHT[b.type] ?? 5);

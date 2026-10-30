@@ -18,7 +18,7 @@ import {
   onPoisonedDeath,
 } from './heroSystem';
 import {
-  AMBUSH_MULT, CHARGE_DISTANCE, CHARGE_MULT, LIFESTEAL, SAPPER_VS_BUILDING, SPEAR_VS_CAVALRY, STING_INFECT,
+  AMBUSH_MULT, CHARGE_DISTANCE, CHARGE_MULT, LIFESTEAL, SAPPER_VS_BUILDING, SPEAR_VS_CAVALRY, STING_INFECT, TROOP_DEFS,
 } from '../troops';
 import { moveTo } from './movement';
 import { modOf } from '../modifiers';
@@ -110,7 +110,8 @@ const RAISE_RADIUS = 7;
 
 /** 招魂：活人死去時，附近的死靈族有機會把屍骸喚起成骷髏兵（帶著原本的武器） */
 function raiseDead(world: World, corpse: Unit): void {
-  if (RACES[corpse.race].raiseDead > 0 || corpse.summonedBy !== undefined) return; // 死靈與召喚物不會復生
+  // 死靈與召喚物不會復生，沉船也沒有屍骸
+  if (RACES[corpse.race].raiseDead > 0 || corpse.summonedBy !== undefined || TROOP_DEFS[corpse.troop].naval) return;
   for (const f of world.factions) {
     const chance = RACES[f.race].raiseDead;
     if (!f.alive || chance <= 0) continue;

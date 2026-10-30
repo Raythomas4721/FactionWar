@@ -32,6 +32,8 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
     desc: '可以訓練騎兵（人類的騎士、獸人的狼騎兵）' },
   lair: { type: 'lair', name: '巢穴', glyph: '巢', hp: 400, cost: {}, tech: 99, work: 0,
     desc: '中立怪物守護的巢穴；攻陷它的陣營可以奪得寶藏，周圍的遠古礦脈也會開放採集' },
+  dock: { type: 'dock', name: '碼頭', glyph: '港', hp: 260, cost: { wood: 60 }, tech: 1, work: 1.4,
+    desc: '蓋在海邊，可以造運兵船與戰船（只有連到大海的岸邊才能蓋）' },
   infirmary: { type: 'infirmary', name: '醫館', glyph: '醫', hp: 150, cost: { wood: 30, stone: 15 }, tech: 1, work: 1.2,
     desc: '附近的病患康復速度 ×3，陣營自發染病機率 -40%' },
 };

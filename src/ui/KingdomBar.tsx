@@ -9,7 +9,11 @@ import { activeLairs } from '../sim/systems/neutral';
 import { ODDS_LABEL, lairOdds } from '../sim/strength';
 import { centerOf, hqOf } from '../sim/util';
 import { dist } from '../sim/math';
-import type { Faction, FocusTactic, Modifier, Outpost, RetreatTactic, World } from '../sim/types';
+import type { Faction, FocusTactic, Modifier, Outpost, RetreatTactic, Troop, World } from '../sim/types';
+import { hasSea } from '../sim/sea';
+import { TROOP_DEFS, canTrainTroop } from '../sim/troops';
+import { canAfford, hasCompleted } from '../sim/util';
+import { RACE_ICONS } from './KingdomSetup';
 import { formatTime } from './ControlBar';
 import {
   ABILITIES, ABILITY_ORDER, FOCUS_LABEL, RETREAT_LABEL, abilityCooldown, musterTarget, useAbility,
@@ -142,6 +146,51 @@ function TacticsRow({ world, me }: { world: World; me: Faction }) {
   );
 }
 
+/** 海軍：碼頭狀態、造船、登陸作戰開關（地圖上有海才出現） */
+function NavyRow({ world, me }: { world: World; me: Faction }) {
+  const dock = world.buildings.find((b) => b.factionId === me.id && b.type === 'dock' && b.hp > 0);
+  const count = (t: Troop) => world.units.filter((u) => u.factionId === me.id && u.hp > 0 && u.troop === t).length;
+  const plan = me.landing;
+  const popFull = popOf(world, me.id) >= popCapOf(world, me.id);
+  const shipButton = (troop: Troop, icon: string) => {
+    const def = TROOP_DEFS[troop];
+    const cost = def.cost ?? {};
+    const unlocked = canTrainTroop(me, troop, (t) => hasCompleted(world, me.id, t));
+    const why = !dock?.complete ? '要先有完工的碼頭' : !unlocked ? `需要科技 Lv${def.tech}` : popFull ? '人口已滿' : '';
+    return (
+      <button
+        disabled={!!why || !canAfford(me.resources, cost)}
+        title={`${def.name}（${costText(cost)}）：${def.desc}${why ? `
+⚠ ${why}` : ''}`}
+        onClick={() => issueCommand(world, me.id, { type: 'train', role: 'warrior', troop })}
+      >
+        {icon}
+        <span className="long"> {def.name}</span> <small>{count(troop)}</small>
+      </button>
+    );
+  };
+  return (
+    <div className="kb-row kb-navy">
+      <span className="cmd-label">海軍</span>
+      <span className="muted kb-dock" title="碼頭由大臣自動蓋在離營帳最近的海邊（科技 Lv1）">
+        ⚓ {!dock ? '尚無碼頭' : dock.complete ? '碼頭' : `碼頭建造中 ${Math.round(dock.progress * 100)}%`}
+      </span>
+      {shipButton('transport', '⛵')}
+      {shipButton('warship', '🚢')}
+      <button
+        className={me.tactics.landing ? 'active' : ''}
+        title="開啟後，下令進攻時運兵船會載 6 名戰士渡海，到敵方海岸搶灘（水陸夾擊）"
+        onClick={() => (me.tactics = { ...me.tactics, landing: !me.tactics.landing })}
+      >
+        ⚓ {plan ? (plan.phase === 'board' ? '登船中' : plan.phase === 'sail' ? '渡海中' : '返航中') : <>登陸 {me.tactics.landing ? '開' : '關'}</>}
+      </button>
+    </div>
+  );
+}
+
+const costText = (cost: Partial<Record<string, number>>) =>
+  Object.entries(cost).map(([k, v]) => `${({ wood: '木', stone: '石', ore: '鐵', food: '糧' } as Record<string, string>)[k]} ${v}`).join('、');
+
 interface BarProps {
   world: World;
   /** 附身英雄時的操作回饋 */
@@ -156,7 +205,9 @@ interface BarProps {
 export function KingdomBar({ world, message, onOpenOffer, scoutMode, onScoutMode }: BarProps) {
   const k = world.kingdom!;
   const me = world.factions[k.player];
-  const foe = world.factions[k.enemy];
+  // 第一章只有一個對手；擴張後是兩個新王國（第一章的對手已經滅亡）
+  const foes = k.chapter === 2 ? k.rivals.map((id) => world.factions[id]) : [world.factions[k.enemy]];
+  const aliveFoes = foes.filter((f) => f.alive);
   const beast = world.factions.find((f) => f.neutral && f.alive);
   const lairs = beast ? activeLairs(world) : [];
   const lairsLeft = lairs.length;
@@ -179,8 +230,14 @@ export function KingdomBar({ world, message, onOpenOffer, scoutMode, onScoutMode
         <span className="kb-title">
           👑 <b style={{ color: me.color }}>{me.name}</b>
           <span className="muted"> vs </span>
-          <b style={{ color: foe.color }}>{foe.name}</b>
+          {foes.map((f, i) => (
+            <span key={f.id}>
+              {i > 0 && <span className="muted">、</span>}
+              <b style={{ color: f.color, textDecoration: f.alive ? undefined : 'line-through' }}>{f.name}</b>
+            </span>
+          ))}
           <span className="badge">{DIFFICULTIES[k.difficulty].name}</span>
+          {k.chapter === 2 && <span className="badge">三國鼎立</span>}
         </span>
         <span className="spacer" />
         {k.offer ? (
@@ -213,14 +270,18 @@ export function KingdomBar({ world, message, onOpenOffer, scoutMode, onScoutMode
               🏆 <span className="long">討伐</span>巢穴 {best && <small>{ODDS_LABEL[best.odds.level].icon}</small>}
             </button>
           )}
-          <button
-            className={isOn('attack', foe.id) ? 'active attack' : ''}
-            disabled={locked || !foe.alive}
-            title={`進攻${foe.name}`}
-            onClick={() => stance('attack', foe.id)}
-          >
-            ⚔ 進攻<span className="long">{foe.name}</span>
-          </button>
+          {foes.map((foe) => (
+            <button
+              key={foe.id}
+              className={isOn('attack', foe.id) ? 'active attack' : ''}
+              disabled={locked || !foe.alive}
+              title={`進攻${foe.name}`}
+              onClick={() => stance('attack', foe.id)}
+            >
+              ⚔ <span className="long">進攻{foe.name}</span>
+              <span className="short">{foes.length > 1 ? RACE_ICONS[foe.race] : '進攻'}</span>
+            </button>
+          ))}
           <button
             disabled={popFull || me.resources.food < scoutCost}
             title={popFull ? '人口已滿' : `訓練斥候（糧食 ${scoutCost}）：跑得快、視野廣，自動偵察`}
@@ -241,11 +302,15 @@ export function KingdomBar({ world, message, onOpenOffer, scoutMode, onScoutMode
         </div>
       )}
       {me.alive && !world.over && <TacticsRow world={world} me={me} />}
-      {me.alive && !world.over && (locked || activeModifiers(world, me).length > 0 || activeModifiers(world, foe).length > 0) && (
+      {me.alive && !world.over && hasSea(world) && <NavyRow world={world} me={me} />}
+      {me.alive && !world.over && (locked || activeModifiers(world, me).length > 0 || aliveFoes.some((f) => activeModifiers(world, f).length > 0)) && (
         <div className="kb-row kb-mods">
           {locked && <span className="muted">🏯 堅壁清野中，暫時不能進攻</span>}
+          {world.tick < k.peaceUntil && <span className="muted">🕊 新王國休養生息 {formatTime(k.peaceUntil - world.tick)}</span>}
           <ModChips world={world} f={me} />
-          <ModChips world={world} f={foe} prefix="敵 " />
+          {aliveFoes.map((f) => (
+            <ModChips key={f.id} world={world} f={f} prefix={foes.length > 1 ? `${RACE_ICONS[f.race]} ` : '敵 '} />
+          ))}
         </div>
       )}
       {me.alive && !world.over && world.outposts.length > 0 && (

@@ -60,7 +60,7 @@ export function areHostile(world: World, a: number, b: number): boolean {
  * 隱身的伏兵要觀察者夠靠近才看得見。
  */
 export function isTargetable(u: Unit, fromX?: number, fromY?: number): boolean {
-  if (u.hp <= 0 || u.action.type === 'envoy' || u.underground) return false;
+  if (u.hp <= 0 || u.action.type === 'envoy' || u.underground || u.aboard !== undefined) return false;
   if (u.hidden && (fromX === undefined || fromY === undefined || dist(fromX, fromY, u.x, u.y) > REVEAL_RADIUS)) return false;
   return true;
 }
@@ -182,4 +182,18 @@ export function spawnUnit(world: World, f: Faction, role: Role, troop: Troop = '
   world.units.push(u);
   world.unitMap.set(u.id, u);
   return u;
+}
+
+/** 2x2 的空地：全是草地，而且和其他建築至少隔一格 */
+export function isFreeSpot(world: World, x: number, y: number): boolean {
+  for (let yy = y; yy < y + BUILDING_SIZE; yy++) {
+    for (let xx = x; xx < x + BUILDING_SIZE; xx++) {
+      if (tileAt(world, xx, yy)?.kind !== 'grass') return false;
+    }
+  }
+  return !world.buildings.some(
+    (b) => b.hp > 0 &&
+      x < b.x + BUILDING_SIZE + 1 && x + BUILDING_SIZE + 1 > b.x &&
+      y < b.y + BUILDING_SIZE + 1 && y + BUILDING_SIZE + 1 > b.y,
+  );
 }

@@ -7,6 +7,7 @@ import { areHostile, hasCompleted, logEvent, popCapOf, popOf, spawnUnit } from '
 import { declareWar, sendEnvoy } from './systems/diplomacy';
 import { getTreaty } from './systems/treaties';
 import { placeBuilding } from './systems/building';
+import { trainShip } from './naval';
 import { attackForbidden, modOf } from './modifiers';
 
 const MAX_CRAFT_QUEUE = 4;
@@ -17,6 +18,8 @@ export function issueCommand(world: World, factionId: number, cmd: Command): voi
 }
 
 export function unitCost(world: World, f: Faction, role: Role, troop: Troop = 'soldier'): number {
+  // 船隻用木頭與鐵礦打造，不花糧食
+  if (TROOP_DEFS[troop].naval) return 0;
   const base = RACES[f.race].unitCost;
   const mult = modOf(world, f.id, 'trainCost');
   if (role !== 'warrior') return Math.round(base * mult);
@@ -31,6 +34,11 @@ export function processCommands(world: World, f: Faction): void {
     switch (cmd.type) {
       case 'train': {
         const troop = cmd.role === 'warrior' ? cmd.troop ?? 'soldier' : 'soldier';
+        // 船在碼頭造，用木頭與鐵礦
+        if (TROOP_DEFS[troop].naval) {
+          trainShip(world, f, troop);
+          break;
+        }
         if (!canTrainTroop(f, troop, (t) => hasCompleted(world, f.id, t))) break;
         const cost = unitCost(world, f, cmd.role, troop);
         if (f.resources.food < cost || popOf(world, f.id) >= popCapOf(world, f.id)) break;

@@ -105,3 +105,8 @@ export function mergeRules(partial: Partial<WorldRules> = {}): WorldRules {
 
 export const maxTicksOf = (rules: WorldRules): number => rules.maxMinutes * 60 * TICKS_PER_SECOND;
 export const peaceTicksOf = (rules: WorldRules): number => rules.peaceMinutes * 60 * TICKS_PER_SECOND;
+
+/** 還在休戰期：開局的休戰，或王國模式擴張後的休養生息 */
+export function inPeace(world: { tick: number; rules: WorldRules; kingdom?: { peaceUntil: number } }): boolean {
+  return world.tick < peaceTicksOf(world.rules) || world.tick < (world.kingdom?.peaceUntil ?? 0);
+}

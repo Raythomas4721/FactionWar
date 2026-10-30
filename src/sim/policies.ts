@@ -2,10 +2,10 @@ import { HQ_THREAT_RADIUS, TICKS_PER_SECOND } from './constants';
 import { MAX_HEROES } from './heroes';
 import type { ItemDef } from './items';
 import { RACES } from './races';
-import { peaceTicksOf } from './rules';
+import { inPeace } from './rules';
 import type { Faction, Item, ModKey, Modifier, RaceId, Resources, Unit, World } from './types';
 import {
-  areHostile, canAfford, centerOf, contenders, enemiesNear, factionBuildings, factionUnits, hqOf, logEvent, spawnUnit,
+  areHostile, canAfford, centerOf, contenders, enemiesNear, factionBuildings, factionUnits, hqOf, logEvent, popOf, spawnUnit,
 } from './util';
 import { completeBuilding } from './systems/building';
 import { pickCraftDef } from './systems/crafting';
@@ -51,11 +51,22 @@ function addTimed(world: World, f: Faction, def: PolicyDef, mods: Partial<Record
   f.modifiers.push({ source: def.id, name: def.name, icon: def.icon, mods, until: world.tick + minutes * MIN, ...extra });
 }
 
-/** 王國模式的對手（一般模式取第一個敵對陣營） */
+/** 王國模式的對手：敵國的對手是玩家，玩家的對手是人最多的敵國（一般模式取第一個敵對陣營） */
 export function rivalOf(world: World, f: Faction): Faction | undefined {
   const k = world.kingdom;
-  if (k && (f.id === k.player || f.id === k.enemy)) return world.factions[f.id === k.player ? k.enemy : k.player];
+  if (k && f.id !== k.player && k.rivals.includes(f.id)) return world.factions[k.player];
+  if (k && f.id === k.player) {
+    const alive = k.rivals.map((id) => world.factions[id]).filter((r) => r.alive);
+    return alive.reduce<Faction | undefined>((a, b) => (!a || popOf(world, b.id) > popOf(world, a.id) ? b : a), undefined) ??
+      world.factions[k.enemy];
+  }
   return contenders(world).find((o) => o.id !== f.id && areHostile(world, f.id, o.id));
+}
+
+/** 王國模式裡還活著的敵國 */
+export function aliveRivals(world: World): Faction[] {
+  const k = world.kingdom;
+  return k ? k.rivals.map((id) => world.factions[id]).filter((f) => f.alive) : [];
 }
 
 function warriorsOf(world: World, f: Faction): Unit[] {
@@ -105,7 +116,7 @@ export const POLICIES: Record<PolicyId, PolicyDef> = {
     gain: '3 分鐘內移動速度 +35%、傷害 +10%，全軍立刻進攻',
     cost: '期間糧食消耗 ×1.6',
     affinity: { orc: 2, human: 1.5 },
-    blocked: (world) => (world.tick < peaceTicksOf(world.rules) ? '休戰期間不能發動' : null),
+    blocked: (world) => (inPeace(world) ? '休戰期間不能發動' : null),
     apply: (world, f) => {
       addTimed(world, f, POLICIES.blitz, { speed: 1.35, damage: 1.1, upkeep: 1.6 }, 3);
       const rival = rivalOf(world, f);
@@ -351,11 +362,12 @@ export function updateKingdom(world: World): void {
     k.offer = drawPolicies(world, player);
     logEvent(world, 'policy', '📜 新的國策卡可以選擇了', player.id);
   }
-  const enemy = world.factions[k.enemy];
-  if (k.difficulty !== 'easy' && enemy.alive && world.tick >= k.aiNextPolicyAt) {
+  if (k.difficulty !== 'easy' && world.tick >= k.aiNextPolicyAt) {
     k.aiNextPolicyAt = world.tick + POLICY_INTERVAL;
-    const pick = aiPickPolicy(world, enemy, drawPolicies(world, enemy));
-    if (pick) enactPolicy(world, enemy, pick);
+    for (const enemy of aliveRivals(world)) {
+      const pick = aiPickPolicy(world, enemy, drawPolicies(world, enemy));
+      if (pick) enactPolicy(world, enemy, pick);
+    }
   }
 }
 

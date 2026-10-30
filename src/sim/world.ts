@@ -35,6 +35,7 @@ import { updateFog } from './fog';
 import { ambushTick, garrisonTick, tunnelTick, updateStealth } from './systems/troopActions';
 import { moveTo } from './systems/movement';
 import { DEFAULT_TACTICS, updateTactics } from './tactics';
+import { boardTick, updateNaval } from './naval';
 
 export interface WorldOptions {
   rules?: Partial<WorldRules>;
@@ -49,7 +50,7 @@ export interface WorldOptions {
 /** 全員結盟要維持多久才算共治勝利（5 分鐘） */
 export const ALLIANCE_HOLD_TICKS = 3000;
 
-const START_ROLES: Role[] = ['worker', 'worker', 'worker', 'worker', 'worker', 'warrior', 'warrior', 'warrior', 'smith'];
+export const START_ROLES: Role[] = ['worker', 'worker', 'worker', 'worker', 'worker', 'warrior', 'warrior', 'warrior', 'smith'];
 
 /** 沒有陣營、全是草地的世界，給測試用 */
 export function createBlankWorld(seed: number, width = MAP_W, height = MAP_H, rules?: Partial<WorldRules>): World {
@@ -131,6 +132,8 @@ export function createFaction(world: World, race: RaceId, races: RaceId[]): Fact
     musterAt: null,
     recallUntil: 0,
     useAbilities: false,
+    landing: null,
+    nextLandingAt: 0,
   };
   world.factions.push(f);
   return f;
@@ -173,7 +176,7 @@ function pickRaces(world: World, count: number): RaceId[] {
   return world.rng.shuffle([...chosen, ...rest.slice(0, count - chosen.length)]);
 }
 
-function starterWeapon(world: World, race: RaceId): Item {
+export function starterWeapon(world: World, race: RaceId): Item {
   return { id: world.nextId++, defId: race === 'elf' ? 'shortbow' : 'club', quality: 1, maker: '初始配給' };
 }
 
@@ -230,7 +233,8 @@ export function step(world: World): void {
   const n = world.units.length;
   for (let k = 0; k < n; k++) {
     const u = world.units[world.tick % 2 ? n - 1 - k : k];
-    if (u.hp <= 0) continue;
+    // 在船上的人什麼都不做，跟著船走
+    if (u.hp <= 0 || u.aboard !== undefined) continue;
     if (u.cooldown > 0) u.cooldown--;
     if (world.tick >= u.thinkAt) {
       if (u.monster) guardianThink(world, u);
@@ -245,6 +249,7 @@ export function step(world: World): void {
     else recover(world, u, besieged);
   }
 
+  updateNaval(world);
   updateOutposts(world);
   cleanup(world);
   updateFog(world);
@@ -284,6 +289,11 @@ function act(world: World, u: Unit): boolean {
     case 'scout':
       // 到了就重新決定下一個偵察地點
       return !moveTo(world, u, a.x, a.y, 0.8);
+    case 'sail':
+      moveTo(world, u, a.x, a.y, 0.4);
+      return true;
+    case 'board':
+      return boardTick(world, u, a.shipId);
     case 'retreat': {
       // 病人去醫館養病，其他人回營帳
       const hq = hqOf(world, world.factions[u.factionId]);

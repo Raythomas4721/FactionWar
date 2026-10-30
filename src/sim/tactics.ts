@@ -1,6 +1,7 @@
 import { HQ_THREAT_RADIUS, SIGHT, TICKS_PER_SECOND } from './constants';
 import { itemDef } from './items';
 import { dist } from './math';
+import { isNaval } from './sea';
 import type { Faction, FocusTactic, Point, RetreatTactic, TacticAbility, Tactics, Unit, World } from './types';
 import {
   areHostile, centerOf, enemiesNear, factionBuildings, factionUnits, hqOf, isPassable, isTargetable, logEvent,
@@ -11,7 +12,7 @@ import {
  * 設定改變小兵「怎麼打」，指令是關鍵時刻的一次性爆發。
  */
 
-export const DEFAULT_TACTICS: Tactics = { retreat: 'normal', focus: 'nearest', muster: false };
+export const DEFAULT_TACTICS: Tactics = { retreat: 'normal', focus: 'nearest', muster: false, landing: true };
 
 export const RETREAT_LABEL: Record<RetreatTactic, { icon: string; name: string; desc: string }> = {
   cautious: { icon: '🩹', name: '保守', desc: '受傷就回營帳養傷，死得少、推進慢' },
@@ -71,7 +72,8 @@ export function abilityCooldown(world: World, f: Faction, id: TacticAbility): nu
 
 function fieldWarriors(world: World, f: Faction): Unit[] {
   return factionUnits(world, f.id).filter(
-    (u) => u.role === 'warrior' && !u.monster && u.troop !== 'scout' && u.post === undefined && u.followHero === undefined,
+    (u) => u.role === 'warrior' && !u.monster && u.troop !== 'scout' && u.post === undefined && u.followHero === undefined &&
+      !isNaval(u) && u.aboard === undefined,
   );
 }
 
@@ -102,13 +104,15 @@ export function useAbility(world: World, f: Faction, id: TacticAbility): boolean
 }
 
 /** 依集火設定挑目標：距離扣掉偏好的加成，越小越優先 */
-export function pickFocusTarget(world: World, u: Unit, focus: FocusTactic, radius = SIGHT): Unit | undefined {
+export function pickFocusTarget(
+  world: World, u: Unit, focus: FocusTactic, radius = SIGHT, allow?: (e: Unit) => boolean,
+): Unit | undefined {
   let best: Unit | undefined;
   let bestCost = Infinity;
   for (const e of world.units) {
     if (!isTargetable(e, u.x, u.y) || !areHostile(world, u.factionId, e.factionId)) continue;
     const d = dist(u.x, u.y, e.x, e.y);
-    if (d > radius) continue;
+    if (d > radius || (allow && !allow(e))) continue;
     let bonus = 0;
     if (focus === 'weakest') bonus = 5 * (1 - e.hp / e.maxHp);
     else if (focus === 'ranged') bonus = e.weapon && itemDef(e.weapon).ranged ? 5 : 0;

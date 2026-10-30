@@ -25,6 +25,7 @@ import { SkillButtons } from './ui/SkillButtons';
 import { HeroTouchControls, MapControls, MobileTabs, type MobileTab } from './ui/MapOverlays';
 import { useIsMobile } from './ui/useIsMobile';
 import { createKingdomWorld, kingdomOutcome, type KingdomSetup } from './sim/kingdom';
+import { expandKingdom } from './sim/expansion';
 import { KingdomSetupPanel, saveKingdomWin } from './ui/KingdomSetup';
 import { KingdomBar, PolicyOffer } from './ui/KingdomBar';
 import { setScoutTarget } from './sim/fog';
@@ -477,6 +478,11 @@ export function App() {
                 if (setup) startKingdom({ ...setup, seed: randomSeed() });
               }}
               onOpenKingdom={() => setShowKingdom(true)}
+              onExpand={() => {
+                expandKingdom(worldRef.current);
+                setSelection(null);
+                resetView();
+              }}
             />
           )}
           {!mobile && <Legend />}

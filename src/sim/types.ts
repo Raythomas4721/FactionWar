@@ -12,7 +12,14 @@ export type Difficulty = 'easy' | 'normal' | 'hard';
 /** 王國模式（1v1 單機）：玩家選一個王國，對抗一個 AI 陣營 */
 export interface KingdomState {
   player: number;
+  /** 第一章的對手 */
   enemy: number;
+  /** 所有敵國（擴張後會多出新的王國） */
+  rivals: number[];
+  /** 1 = 1v1 對峙；2 = 擴張後的三國鼎立 */
+  chapter: 1 | 2;
+  /** 擴張後的休戰：新王國在這之前不會出兵 */
+  peaceUntil: number;
   difficulty: Difficulty;
   /** 等待玩家選擇的國策卡（null = 目前沒有） */
   offer: PolicyId[] | null;
@@ -121,10 +128,13 @@ export type ResourceKind = 'wood' | 'stone' | 'ore' | 'food';
 export type Resources = Record<ResourceKind, number>;
 export type Role = 'worker' | 'warrior' | 'smith' | 'diplomat';
 /** 戰士的兵種 */
-export type Troop = 'soldier' | 'spearman' | 'cavalry' | 'sapper' | 'ranger' | 'ghoul' | 'stinger' | 'scout';
+export type Troop =
+  | 'soldier' | 'spearman' | 'cavalry' | 'sapper' | 'ranger' | 'ghoul' | 'stinger' | 'scout'
+  /** 船隻：只能在海上航行，在碼頭訓練 */
+  | 'transport' | 'warship';
 export type TileKind = 'grass' | 'water' | 'forest' | 'rock' | 'ore' | 'berries';
 export type BuildingType =
-  | 'hq' | 'house' | 'farm' | 'forge' | 'library' | 'barracks' | 'tower' | 'infirmary' | 'stable' | 'lair';
+  | 'hq' | 'house' | 'farm' | 'forge' | 'library' | 'barracks' | 'tower' | 'infirmary' | 'stable' | 'lair' | 'dock';
 export type Stance = 'defend' | 'attack';
 /** 兩個陣營之間的外交狀態 */
 export type Treaty = 'war' | 'peace' | 'alliance';
@@ -179,7 +189,11 @@ export type UnitAction =
   /** 駐守據點 */
   | { type: 'garrison'; outpostId: number }
   /** 斥候：前往某處偵察 */
-  | { type: 'scout'; x: number; y: number };
+  | { type: 'scout'; x: number; y: number }
+  /** 船隻：航行到某處 */
+  | { type: 'sail'; x: number; y: number }
+  /** 走到碼頭搭上運兵船 */
+  | { type: 'board'; shipId: number };
 
 export interface Unit {
   id: number;
@@ -213,6 +227,8 @@ export interface Unit {
   underground: boolean;
   /** 正在古地道裡穿行，到這個 tick 才從出口冒出來 */
   surfaceAt: number;
+  /** 搭乘中的運兵船 id（在船上看不到、打不到，船沉了就淹死） */
+  aboard?: number;
   /** 林地伏兵隱身中 */
   hidden: boolean;
   /** 放箭後暴露位置到這個 tick */
@@ -352,6 +368,24 @@ export interface Faction {
   useAbilities: boolean;
   /** 1v1 地圖右邊的陣營：尋路與找資源時用旋轉 180° 的順序，雙方才完全對稱 */
   mirrored?: boolean;
+  /** 進行中的登陸作戰 */
+  landing: LandingPlan | null;
+  /** 下一次可以發動登陸作戰的 tick */
+  nextLandingAt: number;
+}
+
+/** 登陸作戰：戰士搭上運兵船，渡海到敵方海岸搶灘 */
+export interface LandingPlan {
+  shipId: number;
+  target: number;
+  phase: 'board' | 'sail' | 'return';
+  /** 被指派上船的戰士 */
+  passengers: number[];
+  /** 這個階段開始的 tick */
+  since: number;
+  /** 船要停的海面與上岸的陸地 */
+  sea: Point;
+  shore: Point;
 }
 
 export type RetreatTactic = 'cautious' | 'normal' | 'fierce';
@@ -365,6 +399,8 @@ export interface Tactics {
   focus: FocusTactic;
   /** 下令進攻時先在前線集結，人到齊了再一起衝 */
   muster: boolean;
+  /** 有運兵船時，進攻順便派一隊渡海登陸（水陸夾擊） */
+  landing: boolean;
 }
 
 export type OutpostKind = 'mine' | 'watchtower' | 'shrine';

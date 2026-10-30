@@ -63,7 +63,9 @@ export function battleOdds(mine: Unit[], theirs: Unit[]): Odds {
 /** 會出征的部隊：戰士（不含斥候、怪物與召喚物） */
 export function fieldArmy(world: World, factionId: number): Unit[] {
   return world.units.filter(
-    (u) => u.hp > 0 && u.factionId === factionId && u.role === 'warrior' && u.troop !== 'scout' && !u.monster,
+    (u) =>
+      u.hp > 0 && u.factionId === factionId && u.role === 'warrior' && u.troop !== 'scout' && !u.monster &&
+      u.troop !== 'transport' && u.troop !== 'warship' && u.aboard === undefined,
   );
 }
 
