@@ -6,6 +6,17 @@ export class Rng {
     this.s = seed >>> 0 || 1;
   }
 
+  /** 目前的內部狀態（存檔用；Rng.fromState 就能接著產生同樣的亂數） */
+  get state(): number {
+    return this.s;
+  }
+
+  static fromState(state: number): Rng {
+    const r = new Rng(1);
+    r.s = state >>> 0;
+    return r;
+  }
+
   next(): number {
     let t = (this.s = (this.s + 0x6d2b79f5) >>> 0);
     t = Math.imul(t ^ (t >>> 15), t | 1);

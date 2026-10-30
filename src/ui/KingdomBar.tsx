@@ -51,7 +51,7 @@ export function OutpostActions({ world, o, me }: { world: World; o: Outpost; me:
   const have = garrisonOf(world, me.id, o.id).length;
   if (want === 0) {
     return (
-      <button className="op-go" title="派 3 名戰士過去佔領並駐守" onClick={() => adjustGarrison(world, me, o.id, 3)}>
+      <button className="op-go" data-coach="outpost" title="派 3 名戰士過去佔領並駐守" onClick={() => adjustGarrison(world, me, o.id, 3)}>
         🚩 <span className="long">派兵</span>佔領
       </button>
     );
@@ -255,7 +255,7 @@ export function KingdomBar({ world, message, onOpenOffer, scoutMode, onScoutMode
       </div>
       {me.alive && !world.over && (
         <div className="kb-row kb-stance">
-          <button className={isOn('defend', null) ? 'active' : ''} onClick={() => stance('defend', null)}>
+          <button data-coach="defend" className={isOn('defend', null) ? 'active' : ''} onClick={() => stance('defend', null)}>
             🛡 防守
           </button>
           {beast && lairsLeft > 0 && (
@@ -273,6 +273,7 @@ export function KingdomBar({ world, message, onOpenOffer, scoutMode, onScoutMode
           {foes.map((foe) => (
             <button
               key={foe.id}
+              data-coach="attack"
               className={isOn('attack', foe.id) ? 'active attack' : ''}
               disabled={locked || !foe.alive}
               title={`進攻${foe.name}`}
@@ -283,6 +284,7 @@ export function KingdomBar({ world, message, onOpenOffer, scoutMode, onScoutMode
             </button>
           ))}
           <button
+            data-coach="scout"
             disabled={popFull || me.resources.food < scoutCost}
             title={popFull ? '人口已滿' : `訓練斥候（糧食 ${scoutCost}）：跑得快、視野廣，自動偵察`}
             onClick={() => issueCommand(world, me.id, { type: 'train', role: 'warrior', troop: 'scout' })}

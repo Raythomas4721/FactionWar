@@ -2,6 +2,9 @@ import { useState } from 'react';
 import { DIFFICULTIES, DIFFICULTY_ORDER, type KingdomSetup } from '../sim/kingdom';
 import { RACES, RACE_ORDER } from '../sim/races';
 import type { Difficulty, RaceId } from '../sim/types';
+import { formatTime } from './ControlBar';
+import type { SaveMeta } from './saveGame';
+import { setTutorialEnabled, tutorialEnabled } from './Tutorial';
 
 const SETUP_KEY = 'factionwar.kingdom.setup';
 const RECORDS_KEY = 'factionwar.kingdom.records';
@@ -40,15 +43,19 @@ export const RACE_ICONS: Record<RaceId, string> = {
 
 interface Props {
   onStart: (setup: KingdomSetup) => void;
+  /** 自動存檔的上一局（沒有就是 null） */
+  saved: SaveMeta | null;
+  onResume: () => void;
   onClose: () => void;
 }
 
 /** 王國模式的開局畫面：選自己的王國、對手與難度 */
-export function KingdomSetupPanel({ onStart, onClose }: Props) {
+export function KingdomSetupPanel({ onStart, saved, onResume, onClose }: Props) {
   const [setup, setSetup] = useState<SavedSetup>(() =>
     load<SavedSetup>(SETUP_KEY, { player: 'human', enemy: 'random', difficulty: 'normal' }),
   );
   const records = load<Records>(RECORDS_KEY, {});
+  const [coach, setCoach] = useState(tutorialEnabled);
   const update = (patch: Partial<SavedSetup>) => {
     const next = { ...setup, ...patch };
     if (next.enemy === next.player) next.enemy = 'random';
@@ -68,6 +75,21 @@ export function KingdomSetupPanel({ onStart, onClose }: Props) {
           <span className="muted">選一個王國，在 1v1 地圖上擊敗對手</span>
           <button onClick={onClose} aria-label="關閉">✕</button>
         </div>
+
+        {saved && (
+          <div className="welcome-save">
+            <div>
+              <b>📜 上一局</b>
+              <div className="muted">
+                {saved.title} · {saved.chapter === 2 ? '第二章' : '第一章'} · ⏱ {formatTime(saved.tick)}
+              </div>
+              <small className="muted">開新局會蓋掉這個存檔</small>
+            </div>
+            <button className="primary" onClick={onResume}>
+              ▶ 繼續
+            </button>
+          </div>
+        )}
 
         <h3>你的王國</h3>
         <div className="race-grid">
@@ -125,6 +147,18 @@ export function KingdomSetupPanel({ onStart, onClose }: Props) {
         <label className="rule-check">
           <input type="checkbox" checked={setup.fog !== false} onChange={(e) => update({ fog: e.target.checked })} />
           🌫 戰爭迷霧：只看得到自己視野內的東西，要派斥候或佔領瞭望塔偵察
+        </label>
+
+        <label className="rule-check">
+          <input
+            type="checkbox"
+            checked={coach}
+            onChange={(e) => {
+              setTutorialEnabled(e.target.checked);
+              setCoach(e.target.checked);
+            }}
+          />
+          🎓 新手提示：照遊戲進度一步一步教你怎麼玩（重新勾選會從頭再教一次）
         </label>
 
         <div className="muted kingdom-howto">

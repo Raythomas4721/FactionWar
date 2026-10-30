@@ -16,6 +16,7 @@ interface Props {
   onOpenRules: () => void;
   onOpenTrials: () => void;
   onOpenKingdom: () => void;
+  onHelp: () => void;
 }
 
 export function formatTime(tick: number): string {
@@ -24,7 +25,7 @@ export function formatTime(tick: number): string {
 }
 
 export function ControlBar({
-  world, paused, speed, onTogglePause, onSpeed, onNewGame, onRestart, onSeed, onOpenRules, onOpenTrials, onOpenKingdom,
+  world, paused, speed, onTogglePause, onSpeed, onNewGame, onRestart, onSeed, onOpenRules, onOpenTrials, onOpenKingdom, onHelp,
 }: Props) {
   const [seedInput, setSeedInput] = useState('');
   return (
@@ -44,6 +45,7 @@ export function ControlBar({
       <button className="kingdom-btn" onClick={onOpenKingdom}>👑 王國模式</button>
       <button onClick={onOpenRules}>📜 世界法則</button>
       <button onClick={onOpenTrials}>🏆 試煉</button>
+      <button onClick={onHelp} title="玩法說明" aria-label="玩法說明">❓</button>
       <span className="spacer" />
       <span className="muted">種子 {world.seed}</span>
       <button onClick={onRestart} title="用同一個種子重播">↺ 重播</button>

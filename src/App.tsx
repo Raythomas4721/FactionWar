@@ -29,6 +29,8 @@ import { expandKingdom } from './sim/expansion';
 import { KingdomSetupPanel, saveKingdomWin } from './ui/KingdomSetup';
 import { KingdomBar, PolicyOffer } from './ui/KingdomBar';
 import { setScoutTarget } from './sim/fog';
+import { autoSave, loadSave, loadSaveMeta } from './ui/saveGame';
+import { Coach, WelcomePanel, hasBeenWelcomed, markWelcomed } from './ui/Tutorial';
 
 const randomSeed = () => Math.floor(Math.random() * 1_000_000);
 const MAX_STEPS_PER_FRAME = 400;
@@ -36,6 +38,8 @@ const UI_REFRESH_MS = 200;
 const RULES_KEY = 'factionwar.rules';
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 4;
+/** 王國模式每隔多久自動存檔一次 */
+const AUTOSAVE_MS = 15_000;
 /** 手指移動超過這個距離就算拖曳，不算點擊 */
 const DRAG_THRESHOLD = 6;
 
@@ -79,6 +83,8 @@ export function App() {
   const [showRules, setShowRules] = useState(false);
   const [showTrials, setShowTrials] = useState(false);
   const [showKingdom, setShowKingdom] = useState(false);
+  // 第一次來，或有上一局的存檔時，先跳出開場畫面
+  const [showWelcome, setShowWelcome] = useState(() => !hasBeenWelcomed() || !!loadSaveMeta());
   const [offerLater, setOfferLater] = useState(false);
   const [scoutMode, setScoutMode] = useState(false);
   const kingdomSetupRef = useRef<KingdomSetup | null>(null);
@@ -150,6 +156,22 @@ export function App() {
     dev.__step = (n: number) => {
       for (let i = 0; i < n && !worldRef.current.over; i++) step(worldRef.current);
       return worldRef.current.tick;
+    };
+  }, []);
+
+  // 王國模式自動存檔：定時存，切到背景或關掉網頁時也存
+  useEffect(() => {
+    const flush = () => autoSave(worldRef.current, kingdomSetupRef.current);
+    const onHidden = () => {
+      if (document.visibilityState === 'hidden') flush();
+    };
+    const id = setInterval(flush, AUTOSAVE_MS);
+    document.addEventListener('visibilitychange', onHidden);
+    window.addEventListener('pagehide', flush);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onHidden);
+      window.removeEventListener('pagehide', flush);
     };
   }, []);
 
@@ -249,6 +271,30 @@ export function App() {
     setCastMsg({ ok: true, text: `王國模式：${worldRef.current.factions[k.player].name} 對 ${worldRef.current.factions[k.enemy].name}` });
     setShowKingdom(false);
   }, []);
+
+  const resumeSave = useCallback(() => {
+    const save = loadSave();
+    setShowWelcome(false);
+    setShowKingdom(false);
+    markWelcomed();
+    if (!save) {
+      setCastMsg({ ok: false, text: '存檔讀不出來，請開新局' });
+      return;
+    }
+    worldRef.current = save.world;
+    kingdomSetupRef.current = save.meta.setup;
+    manualCamRef.current = null;
+    setSelection(null);
+    setPaused(false);
+    setPower(null);
+    setOfferLater(false);
+    setCastMsg({ ok: true, text: `📜 繼續上一局：${save.meta.title}` });
+  }, []);
+
+  const closeWelcome = () => {
+    markWelcomed();
+    setShowWelcome(false);
+  };
 
   const startTrial = useCallback((def: TrialDef) => {
     worldRef.current = createTrialWorld(def);
@@ -406,6 +452,7 @@ export function App() {
         onOpenRules={() => setShowRules(true)}
         onOpenTrials={() => setShowTrials(true)}
         onOpenKingdom={() => setShowKingdom(true)}
+        onHelp={() => setShowWelcome(true)}
       />
       <div className="main">
         <div className="board">
@@ -421,6 +468,7 @@ export function App() {
           ) : (
             <GodBar world={world} selected={power} onSelect={setPower} message={castMsg} />
           )}
+          {world.kingdom && <Coach world={world} />}
           <EventsBar world={world} />
           {possessed?.hero && !mobile && (
             <div className="possess-bar">
@@ -502,7 +550,20 @@ export function App() {
       {!mobile && <FactionPanel world={world} />}
       {mobile && <MobileTabs tab={mobileTab} onTab={setMobileTab} />}
       {offerOpen && <PolicyOffer world={world} onLater={() => setOfferLater(true)} />}
-      {showKingdom && <KingdomSetupPanel onStart={startKingdom} onClose={() => setShowKingdom(false)} />}
+      {showKingdom && (
+        <KingdomSetupPanel saved={loadSaveMeta()} onResume={resumeSave} onStart={startKingdom} onClose={() => setShowKingdom(false)} />
+      )}
+      {showWelcome && !showKingdom && (
+        <WelcomePanel
+          saved={loadSaveMeta()}
+          onResume={resumeSave}
+          onKingdom={() => {
+            closeWelcome();
+            setShowKingdom(true);
+          }}
+          onClose={closeWelcome}
+        />
+      )}
       {showTrials && <TrialsPanel onStart={startTrial} onClose={() => setShowTrials(false)} />}
       {showRules && (
         <RulesPanel
