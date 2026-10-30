@@ -56,10 +56,12 @@ export function Inspector({ world, selection }: { world: World; selection: Selec
 }
 
 function describeAction(world: World, u: Unit): string {
+  if (world.tick < u.surfaceAt) return `穿越古地道中（${Math.ceil((u.surfaceAt - world.tick) / 10)} 秒後出來，地底無法被攻擊）`;
   const a = u.action;
   switch (a.type) {
     case 'idle': return '發呆';
-    case 'gather': return `採集${RESOURCE_NAMES[a.kind]}`;
+    case 'gather':
+      return world.tiles[a.ty * world.width + a.tx]?.kind === 'water' ? '在岸邊釣魚' : `採集${RESOURCE_NAMES[a.kind]}`;
     case 'deliver': return u.carrying ? `運送${RESOURCE_NAMES[u.carrying.kind]}回營帳` : '回營帳';
     case 'build': {
       const b = getBuilding(world, a.buildingId);

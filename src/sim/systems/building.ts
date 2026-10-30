@@ -24,12 +24,17 @@ export function isBuildingUnlocked(f: Faction, type: BuildingType): boolean {
 export function findBuildSpot(world: World, f: Faction): Point | null {
   const hq = hqOf(world, f);
   if (!hq) return null;
+  // 掃描順序跟著地圖對稱翻轉，每個陣營都從「自家角落」那一側開始找，
+  // 否則右邊的陣營會把房子蓋到前線去（營帳在中線上時是點對稱，xy 一起翻）
+  const c = centerOf(hq);
+  const sx = c.x > world.width / 2 ? -1 : 1;
+  const sy = c.y > world.height / 2 ? -1 : c.y < world.height / 2 ? 1 : sx;
   for (let r = 3; r <= 12; r++) {
     for (let dy = -r; dy <= r; dy++) {
       for (let dx = -r; dx <= r; dx++) {
         if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
-        const x = hq.x + dx;
-        const y = hq.y + dy;
+        const x = hq.x + dx * sx;
+        const y = hq.y + dy * sy;
         if (isFreeSpot(world, x, y)) return { x, y };
       }
     }

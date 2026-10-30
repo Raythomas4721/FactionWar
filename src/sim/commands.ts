@@ -70,6 +70,7 @@ export function processCommands(world: World, f: Faction): void {
         if (cmd.stance === f.stance && cmd.target === f.targetFaction) break;
         f.stance = cmd.stance;
         f.targetFaction = cmd.target;
+        f.musterAt = cmd.stance === 'attack' && f.tactics.muster ? world.tick : null;
         if (cmd.stance === 'attack' && cmd.target !== null) {
           const n = world.units.filter((u) => u.factionId === f.id && u.role === 'warrior' && u.hp > 0).length;
           logEvent(world, 'faction', `${f.name} 集結 ${n} 名戰士，向 ${world.factions[cmd.target].name} 發動進攻！`, f.id);

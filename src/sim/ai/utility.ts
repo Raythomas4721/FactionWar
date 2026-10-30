@@ -7,12 +7,13 @@ import {
   areHostile, canAfford, centerOf, enemiesNear, factionBuildings, hasCompleted, hqOf, isTargetable, nearestEnemyUnit,
 } from '../util';
 import { cancelCraft, isItemUnlocked, startCraft } from '../systems/crafting';
-import { RESOURCE_TILE, findNearestResource } from '../systems/economy';
+import { findNearestResource, isResourceTile } from '../systems/economy';
 import { bestArmoryUpgrade } from '../systems/equipment';
 import { pickSubvertTarget } from '../systems/diplomacy';
 import { findAmbushSpot } from '../systems/troopActions';
 import { followerThink } from '../systems/heroSystem';
 import { pickScoutTarget } from '../fog';
+import { RETREAT_MULT, musterTarget, pickFocusTarget } from '../tactics';
 
 /**
  * 個體 Utility AI：列出所有可做的事、各自打分，挑最高分的去做。
@@ -40,7 +41,9 @@ export function think(world: World, u: Unit): void {
   const add = (score: number, action: Option['action']) => options.push({ score, action });
 
   const hpRatio = u.hp / u.maxHp;
-  const enemy = nearestEnemyUnit(world, u, SIGHT);
+  // 戰士依集火設定挑目標，其他人只看最近的威脅
+  const focus = u.role === 'warrior' ? f.tactics.focus : 'nearest';
+  const enemy = focus === 'nearest' ? nearestEnemyUnit(world, u, SIGHT) : pickFocusTarget(world, u, focus);
   const enemyDist = enemy ? dist(u.x, u.y, enemy.x, enemy.y) : Infinity;
   const resting = u.action.type === 'retreat';
 
@@ -53,7 +56,11 @@ export function think(world: World, u: Unit): void {
     if (f.stance === 'attack') s *= 0.6;
     else if (u.sick) s += 30;
     if (resting && u.sick && f.stance !== 'attack') s = Math.max(s, 80);
-    if (resting && (hpRatio < 0.85 || u.morale < 55)) s = Math.max(s, 92);
+    s *= RETREAT_MULT[f.tactics.retreat];
+    const healedAt = f.tactics.retreat === 'cautious' ? 0.95 : 0.85;
+    if (resting && (hpRatio < healedAt || u.morale < 55)) s = Math.max(s, 92);
+    // 鳴金收兵：全軍撤回
+    if (world.tick < f.recallUntil) s = Math.max(s, 96);
     add(s, { type: 'retreat' });
     warriorOptions(world, u, f, add, enemy, enemyDist);
   } else {
@@ -97,7 +104,7 @@ function sameAction(a: UnitAction, b: UnitAction): boolean {
     case 'ambush': return b.type === 'ambush' && a.x === b.x && a.y === b.y;
     case 'garrison': return b.type === 'garrison' && a.outpostId === b.outpostId;
     case 'scout': return b.type === 'scout' && a.x === b.x && a.y === b.y;
-    case 'guard': return true;
+    case 'guard': return b.type === 'guard' && Math.abs(a.x - b.x) < 3 && Math.abs(a.y - b.y) < 3;
     case 'craft': return true;
     default: return true;
   }
@@ -106,7 +113,7 @@ function sameAction(a: UnitAction, b: UnitAction): boolean {
 function setAction(world: World, u: Unit, action: UnitAction): void {
   if (sameAction(u.action, action)) return;
   if (u.action.type === 'craft') cancelCraft(world, u);
-  if (u.underground && action.type !== 'tunnel') u.underground = false;
+  if (u.underground && action.type !== 'tunnel' && world.tick >= u.surfaceAt) u.underground = false;
   u.action = action;
   u.path.length = 0;
   u.pathGoal = null;
@@ -149,6 +156,10 @@ function warriorOptions(
 
   const up = bestArmoryUpgrade(f, u);
   if (up && !enemy) add(55 + Math.min(up.gain * 3, 20), { type: 'equip' });
+
+  // 集結進攻：先到前線的集結點等大家
+  const rally = u.post === undefined ? musterTarget(world, f) : null;
+  if (rally) add(60, { type: 'guard', x: rally.x + world.rng.range(-1.5, 1.5), y: rally.y + world.rng.range(-1.5, 1.5) });
 
   if (f.stance === 'attack' && f.targetFaction !== null && world.factions[f.targetFaction].alive) {
     const targets = factionBuildings(world, f.targetFaction);
@@ -249,7 +260,7 @@ function civilianOptions(world: World, u: Unit, f: Faction, add: (s: number, a: 
     }
   }
 
-  const want = pickGatherKind(f, u);
+  const want = pickGatherKind(world, f, u);
   if (u.carrying && u.carrying.amount > 0 && u.carrying.kind !== want) add(55, { type: 'deliver' });
   // 正在送貨就先送完，不必重新找資源
   if (u.action.type === 'deliver' && u.carrying) {
@@ -260,7 +271,7 @@ function civilianOptions(world: World, u: Unit, f: Faction, add: (s: number, a: 
   const cur = u.action;
   if (cur.type === 'gather' && cur.kind === want) {
     const t = world.tiles[cur.ty * world.width + cur.tx];
-    if (t.kind === RESOURCE_TILE[cur.kind] && t.amount > 0) {
+    if (isResourceTile(cur.kind, t) && t.amount > 0.01) {
       add(45, cur);
       return;
     }
@@ -286,10 +297,16 @@ function hasAffordableCraft(world: World, f: Faction): boolean {
  * 依陣營 AI 設定的權重分配採集工作。
  * 用單位 id 做固定的「輪盤位置」，所以權重不變時每個工人會穩定負責同一種資源。
  */
-export function pickGatherKind(f: Faction, u: Unit): ResourceKind {
+/**
+ * 依陣營的採集權重分配工作：用工人在自家的排行（黃金比例分散）決定他採什麼，
+ * 各陣營的分配比例一樣，不會因為編號先後而偏向某一邊。
+ */
+export function pickGatherKind(world: World, f: Faction, u: Unit): ResourceKind {
   const total = RESOURCE_KINDS.reduce((s, k) => s + f.gatherWeights[k], 0);
   if (total <= 0) return 'food';
-  let r = ((Math.imul(u.id, 2654435761) >>> 0) % 1000) / 1000 * total;
+  let rank = 0;
+  for (const o of world.units) if (o.factionId === f.id && o.role === u.role && o.hp > 0 && o.id < u.id) rank++;
+  let r = ((rank * 0.6180339887 + 0.3) % 1) * total;
   for (const k of RESOURCE_KINDS) {
     r -= f.gatherWeights[k];
     if (r < 0) return k;

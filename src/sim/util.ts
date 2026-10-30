@@ -169,6 +169,7 @@ export function spawnUnit(world: World, f: Faction, role: Role, troop: Troop = '
     cooldown: 0,
     charge: 0,
     underground: false,
+    surfaceAt: 0,
     hidden: false,
     revealedUntil: 0,
     kills: 0,

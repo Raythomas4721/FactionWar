@@ -1313,6 +1313,29 @@ canvas.casting {
   background: #4a2420;
   border-color: #ff7a6a;
 }
+.kb-tactics label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted, #9aa3ad);
+}
+.kb-tactics select {
+  background: #1b2128;
+  color: inherit;
+  border: 1px solid #3a434d;
+  border-radius: 6px;
+  padding: 3px 4px;
+  font-size: 12px;
+  color: #e6e9ec;
+}
+.kb-tactics button.active {
+  background: #2b3d24;
+  border-color: #8fd16a;
+}
+.kb-tactics .ability small {
+  color: #ffcf6a;
+}
 .mod-chip {
   font-size: 11px;
   padding: 1px 6px;
@@ -1479,4 +1502,27 @@ canvas.casting {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.app.mobile .kb-tactics {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr 1fr;
+  gap: 4px;
+}
+.app.mobile .kb-tactics .spacer {
+  display: none;
+}
+.app.mobile .kb-tactics .cmd-label {
+  grid-row: span 2;
+  align-self: center;
+}
+.app.mobile .kb-tactics select,
+.app.mobile .kb-tactics button {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 2px;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

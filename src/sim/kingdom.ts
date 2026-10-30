@@ -31,24 +31,28 @@ export interface DifficultyDef {
   counterPlay: boolean;
   /** 敵方會不會推行國策 */
   enemyPolicies: boolean;
+  /** 敵方會不會發動戰術指令（衝鋒號、盾牆） */
+  enemyAbilities: boolean;
 }
 
 export const DIFFICULTIES: Record<Difficulty, DifficultyDef> = {
   easy: {
     name: '簡單',
-    desc: '敵國採集 −20%、研究 −15%，比較晚出兵，也不會推行國策',
+    desc: '敵國採集 −20%、研究 −15%，比較晚出兵，也不會推行國策與戰術指令',
     enemyMods: { gather: 0.8, research: 0.85 },
     aggression: 0.75,
     counterPlay: false,
     enemyPolicies: false,
+    enemyAbilities: false,
   },
   normal: {
     name: '普通',
-    desc: '雙方條件相同，敵國也會推行國策',
+    desc: '雙方條件相同，敵國也會推行國策、使用戰術指令',
     enemyMods: {},
     aggression: 1,
     counterPlay: false,
     enemyPolicies: true,
+    enemyAbilities: true,
   },
   hard: {
     name: '困難',
@@ -57,6 +61,7 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyDef> = {
     aggression: 1.3,
     counterPlay: true,
     enemyPolicies: true,
+    enemyAbilities: true,
   },
 };
 
@@ -71,9 +76,9 @@ export const KINGDOM_RULES: Partial<WorldRules> = {
   randomEvents: true,
   infiniteMana: false,
   raceSelection: [],
-  // 1v1 的種族平衡（npm run duel 雙方 AI 各打 120 場調出來的；四族混戰不受影響）：
+  // 1v1 的種族平衡（npm run duel 雙方 AI 各打數百場調出來的；四族混戰不受影響）：
   // 蟲海在只有一個對手時太強，人類的外交長處在 1v1 用不上
-  racePower: { orc: 0.97, elf: 0.94, dwarf: 1.04, human: 1.07, undead: 1.04, insect: 0.9, beast: 1 },
+  racePower: { orc: 0.96, elf: 0.97, dwarf: 1.04, human: 1.1, undead: 1, insect: 0.88, beast: 1 },
 };
 
 /** 1v1 額外的種族修正（目前只靠上面的屬性倍率就夠了，保留給之後微調） */
@@ -97,6 +102,9 @@ export function createKingdomWorld(setup: KingdomSetup): World {
     if (mods) f.modifiers.push({ source: 'balance', name: '1v1 平衡', icon: '⚖', mods, until: Infinity, hidden: true });
   }
   enemy.aggression = diff.aggression;
+  enemy.useAbilities = diff.enemyAbilities;
+  // 平衡測試時玩家也交給 AI，條件要和敵方一樣
+  player.useAbilities = !!setup.autoPlay && diff.enemyAbilities;
   enemy.counterPlay = diff.counterPlay;
   if (Object.keys(diff.enemyMods).length) {
     enemy.modifiers.push({ source: 'difficulty', name: `難度：${diff.name}`, icon: '🎚', mods: diff.enemyMods, until: Infinity });

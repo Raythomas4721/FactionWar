@@ -10,7 +10,7 @@ import { moveTo } from './movement';
 /** 林地伏兵站在森林、而且最近沒有放箭時就會隱身；不在挖地道的工兵一律回到地面 */
 export function updateStealth(world: World): void {
   for (const u of world.units) {
-    if (u.underground && u.action.type !== 'tunnel' && u.action.type !== 'garrison') u.underground = false;
+    if (u.underground && u.action.type !== 'tunnel' && u.action.type !== 'garrison' && world.tick >= u.surfaceAt) u.underground = false;
     if (u.troop !== 'ranger' || u.hp <= 0) {
       u.hidden = false;
       continue;

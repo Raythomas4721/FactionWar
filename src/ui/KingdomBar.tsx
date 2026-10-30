@@ -9,8 +9,12 @@ import { activeLairs } from '../sim/systems/neutral';
 import { ODDS_LABEL, lairOdds } from '../sim/strength';
 import { centerOf, hqOf } from '../sim/util';
 import { dist } from '../sim/math';
-import type { Faction, Modifier, Outpost, World } from '../sim/types';
+import type { Faction, FocusTactic, Modifier, Outpost, RetreatTactic, World } from '../sim/types';
 import { formatTime } from './ControlBar';
+import {
+  ABILITIES, ABILITY_ORDER, FOCUS_LABEL, RETREAT_LABEL, abilityCooldown, musterTarget, useAbility,
+} from '../sim/tactics';
+import { TICKS_PER_SECOND } from '../sim/constants';
 
 const remaining = (world: World, m: Modifier) => (m.until === Infinity ? '永久' : formatTime(m.until - world.tick));
 
@@ -84,6 +88,57 @@ function OutpostChip({ world, o, me }: { world: World; o: Outpost; me: Faction }
       <span className="spacer" />
       <OutpostActions world={world} o={o} me={me} />
     </span>
+  );
+}
+
+/** 戰術：撤退時機、集火目標、集結進攻，與三個有冷卻的戰術指令 */
+function TacticsRow({ world, me }: { world: World; me: Faction }) {
+  const t = me.tactics;
+  const mustering = !!musterTarget(world, me);
+  return (
+    <div className="kb-row kb-tactics">
+      <span className="cmd-label">戰術</span>
+      <label title={Object.values(RETREAT_LABEL).map((r) => `${r.icon}${r.name}：${r.desc}`).join('\n')}>
+        <span className="long">撤退</span>
+        <select value={t.retreat} onChange={(e) => (me.tactics = { ...t, retreat: e.target.value as RetreatTactic })}>
+          {Object.entries(RETREAT_LABEL).map(([id, r]) => (
+            <option key={id} value={id}>
+              {r.icon} {r.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label title={Object.values(FOCUS_LABEL).map((r) => `${r.icon}${r.name}：${r.desc}`).join('\n')}>
+        <span className="long">集火</span>
+        <select value={t.focus} onChange={(e) => (me.tactics = { ...t, focus: e.target.value as FocusTactic })}>
+          {Object.entries(FOCUS_LABEL).map(([id, r]) => (
+            <option key={id} value={id}>
+              {r.icon} {r.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button
+        className={t.muster ? 'active' : ''}
+        title="開啟後，下令進攻時大軍會先在前線集結，七成五的人到齊（或等 40 秒）才一起衝"
+        onClick={() => (me.tactics = { ...t, muster: !t.muster })}
+      >
+        🚩 {mustering ? '集結中…' : <>集結<span className="long">進攻</span> {t.muster ? '開' : '關'}</>}
+      </button>
+      <span className="spacer" />
+      {ABILITY_ORDER.map((id) => {
+        const a = ABILITIES[id];
+        const cd = abilityCooldown(world, me, id);
+        return (
+          <button key={id} className="ability" disabled={cd > 0} title={`${a.name}：${a.desc}（冷卻 ${a.cooldown} 秒）`} onClick={() => useAbility(world, me, id)}>
+            {a.icon}
+            <span className="long"> {a.name}</span>
+            <span className="short"> {a.short}</span>
+            {cd > 0 && <small> {Math.ceil(cd / TICKS_PER_SECOND)}</small>}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -185,6 +240,7 @@ export function KingdomBar({ world, message, onOpenOffer, scoutMode, onScoutMode
           )}
         </div>
       )}
+      {me.alive && !world.over && <TacticsRow world={world} me={me} />}
       {me.alive && !world.over && (locked || activeModifiers(world, me).length > 0 || activeModifiers(world, foe).length > 0) && (
         <div className="kb-row kb-mods">
           {locked && <span className="muted">🏯 堅壁清野中，暫時不能進攻</span>}

@@ -19,7 +19,7 @@ import { processCommands } from './commands';
 import { attackBuildingTick, attackUnitTick } from './systems/combat';
 import { buildTick, createBuilding, updateBuildings } from './systems/building';
 import { craftTick } from './systems/crafting';
-import { deliverTick, gatherTick } from './systems/economy';
+import { deliverTick, gatherTick, updateRegrowth } from './systems/economy';
 import { equipTick } from './systems/equipment';
 import { infirmaryOf, updateAging, updateDisease, updateHunger } from './systems/health';
 import { envoyTick, isAllianceVictory, subvertTick, updateDiplomacy, updateLoyalty } from './systems/diplomacy';
@@ -34,6 +34,7 @@ import { createOutposts, updateOutposts } from './systems/outposts';
 import { updateFog } from './fog';
 import { ambushTick, garrisonTick, tunnelTick, updateStealth } from './systems/troopActions';
 import { moveTo } from './systems/movement';
+import { DEFAULT_TACTICS, updateTactics } from './tactics';
 
 export interface WorldOptions {
   rules?: Partial<WorldRules>;
@@ -83,6 +84,7 @@ export function createBlankWorld(seed: number, width = MAP_W, height = MAP_H, ru
     nextEventAt: 0,
     shake: 0,
     outposts: [],
+    tunnels: [],
   };
 }
 
@@ -124,6 +126,11 @@ export function createFaction(world: World, race: RaceId, races: RaceId[]): Fact
     aggression: 1,
     counterPlay: false,
     garrisons: {},
+    tactics: { ...DEFAULT_TACTICS },
+    abilityReadyAt: {},
+    musterAt: null,
+    recallUntil: 0,
+    useAbilities: false,
   };
   world.factions.push(f);
   return f;
@@ -142,12 +149,14 @@ export function createWorld(seed: number, opts: WorldOptions = {}): World {
     const f = createFaction(world, race, races);
     const spot = map.hqSpots[i];
     f.hqId = createBuilding(world, f, 'hq', spot.x, spot.y, true).id;
+    if (opts.duel && i === 1) f.mirrored = true;
     for (const role of START_ROLES) {
       const u = spawnUnit(world, f, role);
       if (u && role === 'warrior') u.weapon = starterWeapon(world, race);
     }
   });
   if (map.outpostSpots) createOutposts(world, map.outpostSpots);
+  world.tunnels = (map.tunnelSpots ?? []).map((t, i) => ({ id: i + 1, a: t.a, b: t.b }));
   if (world.rules.neutralLairs) {
     const beast = createFaction(world, 'beast', [...races, 'beast']);
     setupLairs(world, beast, map, (x, y) => createBuilding(world, beast, 'lair', x, y, true).id);
@@ -197,6 +206,7 @@ export function step(world: World): void {
 
   updateResearch(world);
   updateBuildings(world);
+  updateRegrowth(world);
   updateHunger(world);
   updateDisease(world);
   updateAging(world);
@@ -205,6 +215,7 @@ export function step(world: World): void {
   updateHeroes(world);
   updateWorldEvents(world);
   updateKingdom(world);
+  updateTactics(world);
   updateDiplomacy(world);
 
   const besieged = new Set<number>();
@@ -215,7 +226,10 @@ export function step(world: World): void {
     if (enemiesNear(world, f.id, c.x, c.y, HQ_REST_RADIUS + 3).length) besieged.add(f.id);
   }
 
-  for (const u of world.units) {
+  // 每個 tick 輪流從頭、從尾處理小人，先出手的優勢不會一直落在同一個陣營
+  const n = world.units.length;
+  for (let k = 0; k < n; k++) {
+    const u = world.units[world.tick % 2 ? n - 1 - k : k];
     if (u.hp <= 0) continue;
     if (u.cooldown > 0) u.cooldown--;
     if (world.tick >= u.thinkAt) {
@@ -242,6 +256,8 @@ export function step(world: World): void {
 }
 
 function act(world: World, u: Unit): boolean {
+  // 還在古地道裡，什麼都做不了
+  if (world.tick < u.surfaceAt) return true;
   const a = u.action;
   switch (a.type) {
     case 'idle': return true;

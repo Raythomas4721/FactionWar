@@ -137,7 +137,15 @@ export interface Point {
 
 export interface Tile {
   kind: TileKind;
+  /** 資源蘊藏量；水域是魚群（採完會慢慢長回來，漿果也是） */
   amount: number;
+}
+
+/** 中立的古地道：兩端入口互通，誰都可以走 */
+export interface Tunnel {
+  id: number;
+  a: Point;
+  b: Point;
 }
 
 export interface Item {
@@ -203,6 +211,8 @@ export interface Unit {
   charge: number;
   /** 地道工兵在地底 */
   underground: boolean;
+  /** 正在古地道裡穿行，到這個 tick 才從出口冒出來 */
+  surfaceAt: number;
   /** 林地伏兵隱身中 */
   hidden: boolean;
   /** 放箭後暴露位置到這個 tick */
@@ -330,6 +340,31 @@ export interface Faction {
   counterPlay: boolean;
   /** 各據點想要的駐守人數（據點 id → 人數） */
   garrisons: Record<number, number>;
+  /** 全軍戰術設定 */
+  tactics: Tactics;
+  /** 戰術指令冷卻到這個 tick */
+  abilityReadyAt: Partial<Record<TacticAbility, number>>;
+  /** 正在集結進攻（開始集結的 tick），null = 沒有在集結 */
+  musterAt: number | null;
+  /** 鳴金收兵：到這個 tick 前戰士一律撤回營帳 */
+  recallUntil: number;
+  /** AI 會不會自己發動戰術指令 */
+  useAbilities: boolean;
+  /** 1v1 地圖右邊的陣營：尋路與找資源時用旋轉 180° 的順序，雙方才完全對稱 */
+  mirrored?: boolean;
+}
+
+export type RetreatTactic = 'cautious' | 'normal' | 'fierce';
+export type FocusTactic = 'nearest' | 'weakest' | 'ranged' | 'heroes';
+export type TacticAbility = 'charge' | 'shieldwall' | 'recall';
+
+export interface Tactics {
+  /** 什麼時候撤退：保守（受傷就回家）、標準、死戰（幾乎不退） */
+  retreat: RetreatTactic;
+  /** 優先打誰 */
+  focus: FocusTactic;
+  /** 下令進攻時先在前線集結，人到齊了再一起衝 */
+  muster: boolean;
 }
 
 export type OutpostKind = 'mine' | 'watchtower' | 'shrine';
@@ -430,6 +465,8 @@ export interface World {
   kingdom?: KingdomState;
   /** 可以佔領的據點 */
   outposts: Outpost[];
+  /** 中立古地道 */
+  tunnels: Tunnel[];
   /** 戰爭迷霧（只有王國模式） */
   fog?: FogState;
   /** 畫面震動強度（純視覺，附身英雄受重擊時） */

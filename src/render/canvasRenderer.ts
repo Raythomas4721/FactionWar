@@ -627,6 +627,7 @@ export class CanvasRenderer {
             }
           }
         } else if (kind === 'berries') {
+          const ripe = world.tiles[y * world.width + x].amount >= 8;
           ctx.fillStyle = 'rgba(0,0,0,0.3)';
           ctx.beginPath();
           ctx.ellipse(px + 6.5, py + 9, 4.5, 2, 0, 0, Math.PI * 2);
@@ -636,14 +637,45 @@ export class CanvasRenderer {
           ctx.arc(px + 4.5, py + 6, 3, 0, Math.PI * 2);
           ctx.arc(px + 8, py + 6.5, 3.2, 0, Math.PI * 2);
           ctx.fill();
-          ctx.fillStyle = DETAIL.berries!;
-          for (const [ox, oy] of [[3.5, 5], [6.5, 4.5], [8.5, 7], [5, 7.5]]) ctx.fillRect(px + ox, py + oy, 1.6, 1.6);
+          // 被摘光的漿果叢只剩葉子，等果子長回來
+          if (ripe) {
+            ctx.fillStyle = DETAIL.berries!;
+            for (const [ox, oy] of [[3.5, 5], [6.5, 4.5], [8.5, 7], [5, 7.5]]) ctx.fillRect(px + ox, py + oy, 1.6, 1.6);
+          }
         }
       }
     }
+    // 4. 古地道的入口：石砌的洞口
+    for (const t of world.tunnels) for (const end of [t.a, t.b]) tunnelMouth(ctx, (end.x + 0.5) * T, (end.y + 0.5) * T);
     this.terrainVersion = world.terrainVersion;
     this.terrainSeed = world.seed;
   }
+}
+
+/** 古地道入口：一圈石塊圍著黑漆漆的洞口 */
+function tunnelMouth(ctx: CanvasRenderingContext2D, x: number, y: number) {
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath();
+  ctx.ellipse(x + 1, y + 3, 9, 4.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  for (let i = 0; i < 9; i++) {
+    const a = Math.PI * 0.95 + (i / 8) * Math.PI * 1.1;
+    boulder(ctx, x + Math.cos(a) * 7, y + Math.sin(a) * 5.5 + 1, 2.4, i % 2 ? '#8a8f96' : '#767b82');
+  }
+  ctx.fillStyle = '#0d0b0a';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 1.5, 5, 3.6, 0, Math.PI, 0);
+  ctx.lineTo(x + 5, y + 3.5);
+  ctx.lineTo(x - 5, y + 3.5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.font = 'bold 8px "Microsoft JhengHei", "PingFang TC", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = 'rgba(10,12,14,0.75)';
+  ctx.fillRect(x - 11, y + 7, 22, 10);
+  ctx.fillStyle = '#e8d9b0';
+  ctx.fillText('古地道', x, y + 12.5);
 }
 
 /** 一棵樹：影子、樹冠、亮面 */

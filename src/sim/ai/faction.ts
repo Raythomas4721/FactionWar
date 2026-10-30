@@ -242,6 +242,8 @@ function decideBuilding(world: World, f: Faction, units: Unit[], cmds: Command[]
   if (cap - pop <= 2 && n('house') < 8) wishes.push('house');
   if (f.starving && n('farm') < 8) wishes.push('farm');
   if (n('farm') < Math.min(6, 1 + Math.floor(pop / 6))) wishes.push('farm');
+  // 漿果被摘光、人口又掉下來時，木頭有剩就多開農田，不然補不了兵
+  if (f.resources.food < 60 && f.resources.wood > 100 && n('farm') < 8) wishes.push('farm');
   if (n('infirmary') === 0 && units.some((u) => u.sick)) wishes.push('infirmary');
   if (n('forge') === 0) wishes.push('forge');
   if (n('library') === 0) wishes.push('library');

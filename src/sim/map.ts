@@ -18,14 +18,20 @@ export interface MapResult {
   pairedLairs?: boolean;
   /** 可以佔領的據點（中心座標） */
   outpostSpots?: { kind: OutpostKind; x: number; y: number }[];
+  /** 中立古地道兩端的格子 */
+  tunnelSpots?: { a: Point; b: Point }[];
 }
 
 /** 1v1 對峙地圖的大小 */
 export const DUEL_W = 56;
 export const DUEL_H = 36;
 
+/** 水域的魚群上限；漿果與魚採完都會慢慢長回來 */
+export const FISH_MAX = 20;
+export const BERRY_MAX = 35;
+
 const AMOUNTS: Record<TileKind, number> = {
-  grass: 0, water: 0, forest: 50, rock: 100, ore: 70, berries: 35,
+  grass: 0, water: FISH_MAX, forest: 50, rock: 100, ore: 70, berries: BERRY_MAX,
 };
 
 const HQ_LOCAL: Point = { x: 5, y: 5 };
@@ -123,13 +129,15 @@ function tryGenerate(rng: Rng, w: number, h: number, richness: number): MapResul
 
 /**
  * 1v1 對峙地圖：先產生左半邊，再以地圖中心做點對稱（旋轉 180°）得到右半邊。
- * 雙方營帳在左右兩端，各有兩座巢穴，中央是巨龍之巢。
+ * 雙方營帳在左右兩端，各有一座巢穴，中央是巨龍之巢。
+ * 兩條南北向的河把中場圍起來，只能從淺灘過河；角落有一條雙方都能走的古地道。
  */
 export function generateDuelMap(rng: Rng, w = DUEL_W, h = DUEL_H, richness = 1): MapResult {
   for (let attempt = 0; attempt < 20; attempt++) {
     const result = tryGenerateDuel(rng, w, h, richness);
     const outposts = result.outpostSpots!.map((o) => ({ x: Math.floor(o.x), y: Math.floor(o.y) }));
-    if (isConnected(result, w, h, [...result.lairSpots, result.dragonSpot, ...outposts])) return result;
+    const tunnels = result.tunnelSpots!.flatMap((t) => [t.a, t.b]);
+    if (isConnected(result, w, h, [...result.lairSpots, result.dragonSpot, ...outposts, ...tunnels])) return result;
   }
   throw new Error('無法產生連通的地圖');
 }
@@ -149,8 +157,11 @@ function tryGenerateDuel(rng: Rng, w: number, h: number, richness: number): MapR
     { kind: 'watchtower', x: hw - 8, y: h - 7 },
     { kind: 'shrine', x: hw, y: 3 },
   ];
+  // 古地道：左下角通到右上角（旋轉後就是自己），離雙方營帳一樣遠
+  const tunnelEnd: Point = { x: 8, y: h - 5 };
   const reserved = [
     ...outposts.map((o) => ({ x: o.x, y: o.y, r: 2 })),
+    { x: tunnelEnd.x + 0.5, y: tunnelEnd.y + 0.5, r: 1.6 },
     { x: hq.x + 1, y: hq.y + 1, r: BASE_CLEAR_RADIUS },
     ...lairs.map((l) => ({ x: l.x + 1, y: l.y + 1, r: 2.2 })),
     { x: hw, y: midY, r: 1.8 },
@@ -179,6 +190,17 @@ function tryGenerateDuel(rng: Rng, w: number, h: number, richness: number): MapR
     }
   };
 
+  // 河流：寬兩格，微微蜿蜒，留三處淺灘
+  const fords = [[5, 8], [midY - 2, midY + 1], [h - 9, h - 7]];
+  for (let y = 0; y < h; y++) {
+    if (fords.some(([a, b]) => y >= a && y <= b)) continue;
+    const x0 = hw - 6 + Math.round(Math.sin(y / 3.5) * 1.2);
+    for (const x of [x0, x0 + 1]) {
+      if (reserved.every((r) => Math.hypot(x + 0.5 - r.x, y + 0.5 - r.y) > r.r)) half[y * hw + x] = { kind: 'water', amount: FISH_MAX };
+    }
+  }
+  // 家門口的池塘，可以釣魚
+  blob(hq.x + 3, hq.y + 6, 5, 'water');
   // 基地旁固定的資源
   blob(hq.x + 6, hq.y - 3, 6, 'berries');
   blob(hq.x + 6, hq.y + 4, 6, 'berries');
@@ -187,7 +209,6 @@ function tryGenerateDuel(rng: Rng, w: number, h: number, richness: number): MapR
   blob(hq.x + 8, hq.y + 8, 8, 'rock');
   blob(hq.x + 9, hq.y - 7, 7, 'ore');
   // 隨機地形
-  blob(rng.int(hw - 12, hw - 6), rng.int(midY - 6, midY + 5), rng.int(8, 12), 'water');
   blob(rng.int(hw - 14, hw - 4), rng.int(midY + 3, h - 6), 14, 'forest');
   blob(rng.int(hw - 14, hw - 4), rng.int(5, midY - 3), 10, 'forest');
   blob(rng.int(hw - 8, hw - 2), rng.int(0, h - 1), 5, 'rock');
@@ -216,6 +237,7 @@ function tryGenerateDuel(rng: Rng, w: number, h: number, richness: number): MapR
     dragonSpot: dragon,
     pairedLairs: true,
     outpostSpots: [...outposts, ...outposts.map((o) => ({ kind: o.kind, x: w - o.x, y: h - o.y }))],
+    tunnelSpots: [{ a: tunnelEnd, b: { x: w - 1 - tunnelEnd.x, y: h - 1 - tunnelEnd.y } }],
   };
 }
 
