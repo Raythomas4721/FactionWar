@@ -20,6 +20,8 @@ export interface KingdomState {
   chapter: 1 | 2;
   /** 擴張後的休戰：新王國在這之前不會出兵 */
   peaceUntil: number;
+  /** 第二章的合縱：在這之前同盟不會成立或破裂（免得一直反覆） */
+  coalitionLockUntil?: number;
   difficulty: Difficulty;
   /** 等待玩家選擇的國策卡（null = 目前沒有） */
   offer: PolicyId[] | null;

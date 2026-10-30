@@ -1647,3 +1647,7 @@ canvas.casting {
     grid-template-columns: 1fr;
   }
 }
+.mod-chip.coalition {
+  border-color: #ff7a5a;
+  color: #ffb3a3;
+}

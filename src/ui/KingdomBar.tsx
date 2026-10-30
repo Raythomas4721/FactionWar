@@ -11,6 +11,7 @@ import { centerOf, hqOf } from '../sim/util';
 import { dist } from '../sim/math';
 import type { Faction, FocusTactic, Modifier, Outpost, RetreatTactic, Troop, World } from '../sim/types';
 import { hasSea } from '../sim/sea';
+import { coalitionOf } from '../sim/expansion';
 import { TROOP_DEFS, canTrainTroop } from '../sim/troops';
 import { canAfford, hasCompleted } from '../sim/util';
 import { RACE_ICONS } from './KingdomSetup';
@@ -218,6 +219,7 @@ export function KingdomBar({ world, message, onOpenOffer, scoutMode, onScoutMode
   const home = hq ? centerOf(hq) : { x: 0, y: 0 };
   const outposts = [...world.outposts].sort((a, b) => dist(home.x, home.y, a.x, a.y) - dist(home.x, home.y, b.x, b.y));
   const locked = attackForbidden(world, me);
+  const coalition = coalitionOf(world);
   const scouts = world.units.filter((u) => u.hp > 0 && u.factionId === me.id && u.troop === 'scout').length;
   const scoutCost = unitCost(world, me, 'warrior', 'scout');
   const popFull = popOf(world, me.id) >= popCapOf(world, me.id);
@@ -305,10 +307,15 @@ export function KingdomBar({ world, message, onOpenOffer, scoutMode, onScoutMode
       )}
       {me.alive && !world.over && <TacticsRow world={world} me={me} />}
       {me.alive && !world.over && hasSea(world) && <NavyRow world={world} me={me} />}
-      {me.alive && !world.over && (locked || activeModifiers(world, me).length > 0 || aliveFoes.some((f) => activeModifiers(world, f).length > 0)) && (
+      {me.alive && !world.over && (locked || coalition || activeModifiers(world, me).length > 0 || aliveFoes.some((f) => activeModifiers(world, f).length > 0)) && (
         <div className="kb-row kb-mods">
           {locked && <span className="muted">🏯 堅壁清野中，暫時不能進攻</span>}
           {world.tick < k.peaceUntil && <span className="muted">🕊 新王國休養生息 {formatTime(k.peaceUntil - world.tick)}</span>}
+          {coalition && (
+            <span className="mod-chip coalition" title="你的軍隊太強，兩國聯手對付你、不再互相攻打；打下其中一國，或你不再是最強的一方時，同盟就會瓦解">
+              🤝 {coalition[0].name}與{coalition[1].name}結盟共抗你
+            </span>
+          )}
           <ModChips world={world} f={me} />
           {aliveFoes.map((f) => (
             <ModChips key={f.id} world={world} f={f} prefix={foes.length > 1 ? `${RACE_ICONS[f.race]} ` : '敵 '} />

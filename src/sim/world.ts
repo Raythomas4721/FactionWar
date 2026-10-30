@@ -36,6 +36,7 @@ import { ambushTick, garrisonTick, tunnelTick, updateStealth } from './systems/t
 import { moveTo } from './systems/movement';
 import { DEFAULT_TACTICS, updateTactics } from './tactics';
 import { boardTick, updateNaval } from './naval';
+import { updateCoalition } from './expansion';
 
 export interface WorldOptions {
   rules?: Partial<WorldRules>;
@@ -250,6 +251,7 @@ export function step(world: World): void {
   }
 
   updateNaval(world);
+  updateCoalition(world);
   updateOutposts(world);
   cleanup(world);
   updateFog(world);

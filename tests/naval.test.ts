@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { issueCommand } from '../src/sim/commands';
-import { canExpand, expandKingdom, EXPANDED_H, EXPANDED_W } from '../src/sim/expansion';
+import { canExpand, coalitionOf, expandKingdom, updateCoalition, EXPANDED_H, EXPANDED_W } from '../src/sim/expansion';
+import { armyPower, fieldArmy } from '../src/sim/strength';
+import { getTreaty } from '../src/sim/systems/treaties';
 import { createKingdomWorld, kingdomOutcome } from '../src/sim/kingdom';
 import { dist } from '../src/sim/math';
 import { trainShip, updateNaval } from '../src/sim/naval';
@@ -87,6 +89,43 @@ describe('擴張版圖', () => {
     step(w);
     expect(w.over).toBe(true);
     expect(kingdomOutcome(w)).toBe('won');
+  });
+
+  it('新王國的兵力跟著玩家的戰力走：玩家越強，新王國開國的軍隊越大', () => {
+    const ratioOf = (extra: number) => {
+      const w = wonChapterOne();
+      const me = w.factions[0];
+      for (let i = 0; i < extra; i++) spawnUnit(w, me, 'warrior');
+      const mine = fieldArmy(w, me.id);
+      const [east] = expandKingdom(w);
+      const theirs = fieldArmy(w, east.id);
+      return { n: theirs.length, ratio: armyPower(theirs, mine) / armyPower(mine, theirs) };
+    };
+    const small = ratioOf(0);
+    const big = ratioOf(20);
+    expect(big.n).toBeGreaterThan(small.n);
+    // 普通難度：每個新王國約玩家八成戰力
+    expect(big.ratio).toBeGreaterThan(0.7);
+    expect(big.ratio).toBeLessThan(1.1);
+  });
+
+  it('合縱：玩家一家獨大時兩個新王國結盟，玩家不再最強時同盟破裂', () => {
+    const w = wonChapterOne();
+    const [a, b] = expandKingdom(w);
+    const me = w.factions[0];
+    w.tick = Math.ceil(w.tick / 300) * 300;
+    // 玩家軍隊大增 → 結盟
+    for (let i = 0; i < 40; i++) spawnUnit(w, me, 'warrior');
+    updateCoalition(w);
+    expect(getTreaty(w, a.id, b.id)).toBe('alliance');
+    expect(coalitionOf(w)).not.toBeNull();
+    // 玩家軍隊幾乎全滅 → 同盟破裂
+    for (const u of fieldArmy(w, me.id).slice(1)) u.hp = 0;
+    w.units = w.units.filter((u) => u.hp > 0);
+    w.tick += 1800; // 同盟至少維持 3 分鐘
+    updateCoalition(w);
+    expect(getTreaty(w, a.id, b.id)).toBe('war');
+    expect(coalitionOf(w)).toBeNull();
   });
 
   it('擴張後新王國休養生息，一開始不會出兵', () => {

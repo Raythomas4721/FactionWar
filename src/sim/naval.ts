@@ -47,6 +47,9 @@ export function trainShip(world: World, f: Faction, troop: Troop): Unit | null {
   if (!water) return null;
   const u = spawnUnit(world, f, 'warrior', troop, { x: water.x + 0.5, y: water.y + 0.5 });
   if (!u) return null;
+  // 出生時會隨機散開一點，船要正好在碼頭旁的海面上
+  u.x = water.x + 0.5;
+  u.y = water.y + 0.5;
   pay(f.resources, cost);
   f.stats.trained++;
   u.hp = u.maxHp = SHIP_HP[troop] ?? 150;

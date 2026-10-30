@@ -5,9 +5,10 @@ import { RACES, RACE_ORDER, RIVALRY } from './races';
 import type { ItemDef } from './items';
 import { pickCraftDef } from './systems/crafting';
 import { createBuilding, findBuildSpot } from './systems/building';
-import { initTreaties } from './systems/treaties';
-import type { Faction, Item, OutpostKind, Point, RaceId, Tile, TileKind, World } from './types';
-import { factionUnits, logEvent, spawnUnit } from './util';
+import { armyPower, fieldArmy } from './strength';
+import { getTreaty, initTreaties, setTreaty } from './systems/treaties';
+import type { Difficulty, Faction, Item, OutpostKind, Point, RaceId, Tile, TileKind, Unit, World } from './types';
+import { logEvent, popCapOf, popOf, spawnUnit } from './util';
 import { START_ROLES, createFaction, starterWeapon } from './world';
 
 /**
@@ -22,8 +23,16 @@ export const EXPANDED_H = 66;
 const PEACE_MINUTES = 3;
 /** 擴張後再給多少分鐘 */
 const EXTRA_MINUTES = 40;
-/** 新王國開國時的兵力：玩家戰士數的幾成 */
-const ARMY_SHARE = 0.7;
+/** 每個新王國開國時的軍隊戰力，是玩家野戰軍戰力的幾成（依難度） */
+const ARMY_POWER: Record<Difficulty, number> = { easy: 0.55, normal: 0.8, hard: 1 };
+const MIN_WARRIORS = 5;
+const MAX_WARRIORS = 40;
+/** 合縱：每隔多久重新評估一次；玩家戰力是最強對手的幾倍時兩國結盟、低於幾倍時拆夥 */
+const COALITION_CHECK_TICKS = 30 * TICKS_PER_SECOND;
+const COALITION_FORM = 1.5;
+const COALITION_BREAK = 1;
+/** 同盟成立或破裂後，至少維持多久才會再變 */
+const COALITION_LOCK_TICKS = 3 * 60 * TICKS_PER_SECOND;
 /** 新興王國的加速持續幾分鐘 */
 const UPSTART_MINUTES = 8;
 
@@ -170,27 +179,36 @@ function foundKingdom(world: World, race: RaceId, races: RaceId[], spot: Point, 
     source: 'upstart', name: '新興王國', icon: '🌱', mods: { gather: 1.3, research: 1.3 },
     until: world.tick + UPSTART_MINUTES * 60 * TICKS_PER_SECOND,
   });
-  const prebuilt = ['house', 'house', 'farm', 'farm', 'forge', 'barracks'] as const;
+  const prebuilt = ['house', 'house', 'farm', 'farm', 'forge', 'barracks', 'tower'] as const;
   for (const type of prebuilt) {
     const p = findBuildSpot(world, f);
     if (p) createBuilding(world, f, type, p.x, p.y, true);
   }
-  // 軍隊：玩家戰士數的七成（至少 5、最多 18），配上自己科技打得出來的武器與護甲
-  const playerWarriors = factionUnits(world, player.id).filter((u) => u.role === 'warrior').length;
-  const extra = Math.min(18, Math.max(5, Math.round(playerWarriors * ARMY_SHARE)));
-  const roles = [...START_ROLES, 'worker', 'worker', ...Array<'warrior'>(extra).fill('warrior')] as const;
+  for (const role of [...START_ROLES, 'worker', 'worker'] as const) spawnUnit(world, f, role);
+  // 軍隊：配上自己科技打得出來的武器與護甲，一直補到戰力達到玩家野戰軍的幾成（看難度）
   const melee = pickCraftDef(f, true, 'weapon', false);
   const bow = pickCraftDef(f, true, 'weapon', true);
   const armor = pickCraftDef(f, true, 'armor');
   const make = (def: ItemDef | null): Item | null =>
     def ? { id: world.nextId++, defId: def.id, quality: 1, maker: '開國工匠', custom: def.inventor ? def : undefined } : null;
-  let n = 0;
-  for (const role of roles) {
-    const u = spawnUnit(world, f, role);
-    if (!u || role !== 'warrior') continue;
-    const ranged = n++ % 10 < RACES[race].rangedShare * 10;
+  // 用滿血來比：第一章剛打完，玩家的軍隊大多帶傷，很快就會養好
+  const theirs = fullHealth(fieldArmy(world, player.id));
+  const army: Unit[] = fieldArmy(world, f.id);
+  const target = ARMY_POWER[k.difficulty];
+  while (army.length < MAX_WARRIORS) {
+    if (army.length >= MIN_WARRIORS && powerRatio(fullHealth(army), theirs) >= target) break;
+    const u = spawnUnit(world, f, 'warrior');
+    if (!u) break;
+    const ranged = army.length % 10 < RACES[race].rangedShare * 10;
     u.weapon = make(ranged ? bow ?? melee : melee ?? bow) ?? starterWeapon(world, race);
     u.armor = make(armor);
+    army.push(u);
+  }
+  // 房子要夠住，大臣才補得了兵
+  while (popCapOf(world, f.id) < popOf(world, f.id) + 4) {
+    const p = findBuildSpot(world, f);
+    if (!p) break;
+    createBuilding(world, f, 'house', p.x, p.y, true);
   }
   return f;
 }
@@ -237,6 +255,48 @@ export function expandKingdom(world: World): Faction[] {
   logEvent(world, 'faction', `🌊 版圖擴張！東方崛起了${east.name}，南方崛起了${south.name}，三國鼎立的時代開始了`, -1);
   logEvent(world, 'faction', `🕊 新王國休養生息 ${PEACE_MINUTES} 分鐘；內海可以造船，碼頭蓋好就能渡海登陸`, player.id);
   return founded;
+}
+
+const fullHealth = (units: Unit[]): Unit[] => units.map((u) => ({ ...u, hp: u.maxHp }));
+
+/** a 對上 b 的戰力比（> 1 表示 a 比較強） */
+function powerRatio(a: Unit[], b: Unit[]): number {
+  if (!b.length) return Infinity;
+  const theirs = armyPower(b, a);
+  return theirs > 0 ? armyPower(a, b) / theirs : Infinity;
+}
+
+/** 兩個新王國現在是不是同盟 */
+export function coalitionOf(world: World): [Faction, Faction] | null {
+  const k = world.kingdom;
+  if (!k || k.chapter !== 2 || k.rivals.length !== 2) return null;
+  const [a, b] = k.rivals.map((id) => world.factions[id]);
+  return a.alive && b.alive && getTreaty(world, a.id, b.id) === 'alliance' ? [a, b] : null;
+}
+
+/**
+ * 合縱：第二章裡玩家一家獨大時，兩個新王國會結盟共抗玩家；
+ * 玩家的軍隊被打殘、不再是最大的威脅時，同盟就破裂，兩國又互相攻伐。
+ */
+export function updateCoalition(world: World): void {
+  const k = world.kingdom;
+  if (!k || k.chapter !== 2 || k.rivals.length !== 2 || world.over || world.tick % COALITION_CHECK_TICKS !== 0) return;
+  const [a, b] = k.rivals.map((id) => world.factions[id]);
+  if (!a.alive || !b.alive || world.tick < (k.coalitionLockUntil ?? 0)) return;
+  const player = world.factions[k.player];
+  const mine = fieldArmy(world, player.id);
+  // 玩家對上兩國中比較強的那一個的戰力比
+  const ratio = Math.min(powerRatio(mine, fieldArmy(world, a.id)), powerRatio(mine, fieldArmy(world, b.id)));
+  const allied = getTreaty(world, a.id, b.id) === 'alliance';
+  if (!allied && ratio >= COALITION_FORM) {
+    setTreaty(world, a.id, b.id, 'alliance');
+    k.coalitionLockUntil = world.tick + COALITION_LOCK_TICKS;
+    logEvent(world, 'diplomacy', `🤝 ${player.name}勢大，${a.name}與${b.name}結為同盟，共抗${player.name}！`, -1);
+  } else if (allied && ratio < COALITION_BREAK) {
+    setTreaty(world, a.id, b.id, 'war');
+    k.coalitionLockUntil = world.tick + COALITION_LOCK_TICKS;
+    logEvent(world, 'diplomacy', `💔 ${player.name}不再是心腹大患，${a.name}與${b.name}的同盟破裂了`, -1);
+  }
 }
 
 /** 擴張後的地圖上，新王國的位置（測試與畫面用） */
